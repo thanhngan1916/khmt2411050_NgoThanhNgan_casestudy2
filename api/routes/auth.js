@@ -77,4 +77,11 @@ router.post('/login', async (req, res) => {
   }
 });
 
+/* Đăng xuất */
+router.post('/logout', (req, res) => {
+  res.json({
+    message: 'Đăng xuất thành công'
+  });
+});
+
 module.exports = router;
