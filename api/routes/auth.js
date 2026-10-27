@@ -2,9 +2,19 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const authMiddleware = require('../middleware/authMiddleware');
+
+const {
+  getProfile,
+  updateProfile
+} = require('../controllers/userController');
 
 const router = express.Router();
+// Xem thông tin cá nhân
+router.get('/me', authMiddleware, getProfile);
 
+// Cập nhật thông tin cá nhân
+router.put('/me', authMiddleware, updateProfile);
 // Đăng ký
 router.post('/register', async (req, res) => {
   try {
