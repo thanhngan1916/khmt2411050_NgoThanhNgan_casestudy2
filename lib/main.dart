@@ -1,4 +1,4 @@
-
+import 'screens/profile/profile_screen.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -314,10 +314,27 @@ class HomePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
+
               Text('Tài khoản: $email'),
               const SizedBox(height: 24),
+
               FilledButton.icon(
-                onPressed: () => _logout(context),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ProfileScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.person_outline),
+                label: const Text('Thông tin cá nhân'),
+              ),
+
+              const SizedBox(height: 12),
+
+              FilledButton.icon(
+
+              onPressed: () => _logout(context),
                 icon: const Icon(Icons.logout),
                 label: const Text('Đăng xuất'),
               ),
