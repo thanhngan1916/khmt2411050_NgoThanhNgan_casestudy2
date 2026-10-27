@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const TaskManagerApp());
@@ -43,7 +44,6 @@ class _AuthPageState extends State<AuthPage> {
   bool _loading = false;
   String _message = '';
 
-  // Android Emulator mặc định truy cập máy tính qua địa chỉ này.
   static const String baseUrl = 'http://10.0.2.2:3000';
 
   Future<void> _submit() async {
@@ -55,7 +55,8 @@ class _AuthPageState extends State<AuthPage> {
     });
 
     try {
-      final endpoint = _isRegister ? '/api/auth/register' : '/api/auth/login';
+      final endpoint =
+      _isRegister ? '/api/auth/register' : '/api/auth/login';
 
       final body = <String, dynamic>{
         'email': _emailController.text.trim(),
@@ -78,19 +79,31 @@ class _AuthPageState extends State<AuthPage> {
 
       if (!mounted) return;
 
-      setState(() {
-        if (response.statusCode >= 200 &&
-            response.statusCode < 300) {
-          _message = data['message']?.toString() ?? 'Thành công!';
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (!_isRegister && data['token'] != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('token', data['token'].toString());
 
-          if (!_isRegister && data['token'] != null) {
-            _message = 'Đăng nhập thành công!';
-          }
+          if (!mounted) return;
+
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => HomePage(
+                email: _emailController.text.trim(),
+              ),
+            ),
+          );
         } else {
+          setState(() {
+            _message = data['message']?.toString() ?? 'Thành công!';
+          });
+        }
+      } else {
+        setState(() {
           _message = data['message']?.toString() ??
               'Có lỗi xảy ra. Vui lòng thử lại.';
-        }
-      });
+        });
+      }
     } catch (e) {
       if (!mounted) return;
 
@@ -151,8 +164,7 @@ class _AuthPageState extends State<AuthPage> {
                         border: OutlineInputBorder(),
                       ),
                       validator: (value) {
-                        if (_isRegister &&
-                            (value == null || value.trim().isEmpty)) {
+                        if (value == null || value.trim().isEmpty) {
                           return 'Vui lòng nhập họ tên';
                         }
                         return null;
@@ -202,7 +214,13 @@ class _AuthPageState extends State<AuthPage> {
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: _loading
-                          ? const CircularProgressIndicator()
+                          ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
                           : Text(_isRegister ? 'Đăng ký' : 'Đăng nhập'),
                     ),
                   ),
@@ -229,8 +247,7 @@ class _AuthPageState extends State<AuthPage> {
                       _message,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: _message.contains('thành công') ||
-                            _message.contains('Thành công')
+                        color: _message.toLowerCase().contains('thành công')
                             ? Colors.green
                             : Colors.red,
                       ),
@@ -239,6 +256,72 @@ class _AuthPageState extends State<AuthPage> {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class HomePage extends StatelessWidget {
+  final String email;
+
+  const HomePage({super.key, required this.email});
+
+  Future<void> _logout(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('token');
+
+    if (!context.mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthPage()),
+          (route) => false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('TaskManager'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Đăng xuất',
+            icon: const Icon(Icons.logout),
+            onPressed: () => _logout(context),
+          ),
+        ],
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.task_alt,
+                size: 80,
+                color: Colors.deepPurple,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Đăng nhập thành công!',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text('Tài khoản: $email'),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: () => _logout(context),
+                icon: const Icon(Icons.logout),
+                label: const Text('Đăng xuất'),
+              ),
+            ],
           ),
         ),
       ),
