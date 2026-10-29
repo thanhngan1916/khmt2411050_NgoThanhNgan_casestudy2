@@ -94,4 +94,70 @@ router.post('/logout', (req, res) => {
   });
 });
 
+/* Đổi mật khẩu */
+router.put('/change-password', authMiddleware, async (req, res) => {
+  try {
+    const {
+      currentPassword,
+      newPassword,
+      confirmNewPassword
+    } = req.body;
+
+    // Kiểm tra dữ liệu đầu vào
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      return res.status(400).json({
+        message: 'Vui lòng nhập đầy đủ thông tin'
+      });
+    }
+
+    // Kiểm tra mật khẩu mới
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        message: 'Mật khẩu mới phải có ít nhất 8 ký tự'
+      });
+    }
+
+    // Kiểm tra xác nhận mật khẩu mới
+    if (newPassword !== confirmNewPassword) {
+      return res.status(400).json({
+        message: 'Mật khẩu xác nhận không khớp'
+      });
+    }
+
+    // Tìm tài khoản đang đăng nhập
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'Không tìm thấy tài khoản'
+      });
+    }
+
+    // Kiểm tra mật khẩu hiện tại
+    const isMatch = await bcrypt.compare(
+      currentPassword,
+      user.passwordHash
+    );
+
+    if (!isMatch) {
+      return res.status(400).json({
+        message: 'Mật khẩu hiện tại không chính xác'
+      });
+    }
+
+    // Mã hóa mật khẩu mới trước khi lưu
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    return res.status(200).json({
+      message: 'Đổi mật khẩu thành công'
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      message: 'Lỗi máy chủ khi đổi mật khẩu'
+    });
+  }
+});
+
 module.exports = router;
