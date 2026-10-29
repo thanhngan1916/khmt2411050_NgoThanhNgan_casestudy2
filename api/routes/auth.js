@@ -86,12 +86,97 @@ router.post('/login', async (req, res) => {
     });
   }
 });
+// Lấy danh sách người dùng để chọn người phụ trách
+router.get('/users', authMiddleware, async (req, res) => {
+  try {
+    const users = await User.find(
+      { _id: { $ne: req.user.id } }
+    ).select('_id fullName email');
+
+    res.status(200).json({
+      message: 'Lấy danh sách người dùng thành công',
+      users
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      message: 'Không thể lấy danh sách người dùng',
+      error: err.message
+    });
+  }
+});
 
 /* Đăng xuất */
 router.post('/logout', (req, res) => {
   res.json({
     message: 'Đăng xuất thành công'
   });
+});
+
+/* Đổi mật khẩu */
+router.put('/change-password', authMiddleware, async (req, res) => {
+  try {
+    const {
+      currentPassword,
+      newPassword,
+      confirmNewPassword
+    } = req.body;
+
+    // Kiểm tra dữ liệu đầu vào
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      return res.status(400).json({
+        message: 'Vui lòng nhập đầy đủ thông tin'
+      });
+    }
+
+    // Kiểm tra mật khẩu mới
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        message: 'Mật khẩu mới phải có ít nhất 8 ký tự'
+      });
+    }
+
+    // Kiểm tra xác nhận mật khẩu mới
+    if (newPassword !== confirmNewPassword) {
+      return res.status(400).json({
+        message: 'Mật khẩu xác nhận không khớp'
+      });
+    }
+
+    // Tìm tài khoản đang đăng nhập
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'Không tìm thấy tài khoản'
+      });
+    }
+
+    // Kiểm tra mật khẩu hiện tại
+    const isMatch = await bcrypt.compare(
+      currentPassword,
+      user.passwordHash
+    );
+
+    if (!isMatch) {
+      return res.status(400).json({
+        message: 'Mật khẩu hiện tại không chính xác'
+      });
+    }
+
+    // Mã hóa mật khẩu mới trước khi lưu
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    return res.status(200).json({
+      message: 'Đổi mật khẩu thành công'
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      message: 'Lỗi máy chủ khi đổi mật khẩu'
+    });
+  }
 });
 
 module.exports = router;
