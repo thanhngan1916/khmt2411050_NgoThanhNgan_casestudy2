@@ -1,3 +1,4 @@
+const taskRoutes = require('./routes/task');
 const authRoutes = require('./routes/auth');
 const User = require('./models/User');
 require('dotenv').config();
@@ -48,5 +49,14 @@ async function startServer() {
     process.exit(1);
   }
 }
+// Middleware ghi log yêu cầu
+app.use((req, res, next) => {
+  console.log('REQUEST:', req.method, req.originalUrl);
+  next();
+});
+
+// Đăng ký các route API
 app.use('/api/auth', authRoutes);
+app.use('/api/tasks', taskRoutes);
+
 startServer();
