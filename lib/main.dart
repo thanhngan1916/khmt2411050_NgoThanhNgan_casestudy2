@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'screens/tasks/task_list_screen.dart';
 void main() {
   runApp(const TaskManagerApp());
 }
@@ -263,6 +263,7 @@ class _AuthPageState extends State<AuthPage> {
   }
 }
 
+
 class HomePage extends StatelessWidget {
   final String email;
 
@@ -306,6 +307,7 @@ class HomePage extends StatelessWidget {
                 color: Colors.deepPurple,
               ),
               const SizedBox(height: 16),
+
               const Text(
                 'Đăng nhập thành công!',
                 style: TextStyle(
@@ -318,25 +320,50 @@ class HomePage extends StatelessWidget {
               Text('Tài khoản: $email'),
               const SizedBox(height: 24),
 
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const ProfileScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.person_outline),
-                label: const Text('Thông tin cá nhân'),
+              // Nút mở danh sách công việc
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const TaskListScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.list_alt),
+                  label: const Text('Danh sách công việc'),
+                ),
               ),
 
               const SizedBox(height: 12),
 
-              FilledButton.icon(
+              // Nút thông tin cá nhân
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ProfileScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.person_outline),
+                  label: const Text('Thông tin cá nhân'),
+                ),
+              ),
 
-              onPressed: () => _logout(context),
-                icon: const Icon(Icons.logout),
-                label: const Text('Đăng xuất'),
+              const SizedBox(height: 12),
+
+              // Nút đăng xuất
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _logout(context),
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Đăng xuất'),
+                ),
               ),
             ],
           ),
@@ -345,3 +372,4 @@ class HomePage extends StatelessWidget {
     );
   }
 }
+
