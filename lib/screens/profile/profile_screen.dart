@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/user.dart';
 import '../../services/user_service.dart';
-
+import 'change_password_screen.dart';
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -165,16 +165,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   subtitle: Text(_user!.email),
                 ),
                 const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _editing = true;
-                      _error = '';
-                    });
-                  },
-                  icon: const Icon(Icons.edit),
-                  label: const Text('Chỉnh sửa'),
-                ),
+
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _editing = true;
+                          _error = '';
+                        });
+                      },
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Chỉnh sửa thông tin'),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ChangePasswordScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.lock_reset),
+                      label: const Text('Đổi mật khẩu'),
+                    ),
+                  ],
+                )
+
               ] else ...[
                 TextField(
                   controller: _fullNameController,
