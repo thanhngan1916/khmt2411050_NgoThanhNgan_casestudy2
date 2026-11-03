@@ -40,7 +40,13 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       _selectedUsers[user.id] = user;
     }
 
-    _primaryAssigneeId = widget.task.primaryAssigneeId;
+    _primaryAssigneeId =
+    widget.task.primaryAssigneeId != null &&
+        _selectedUsers.containsKey(widget.task.primaryAssigneeId)
+        ? widget.task.primaryAssigneeId
+        : (_selectedUsers.isNotEmpty
+        ? _selectedUsers.keys.first
+        : null);
   }
 
   @override
@@ -64,6 +70,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     setState(() {
       _isSearching = true;
       _error = null;
+      _searchResults = [];
     });
 
     try {
@@ -295,14 +302,17 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
                 const Divider(height: 24),
 
-                // DANH SÁCH NGƯỜI ĐÃ CHỌN
+                // DANH SÁCH NGƯỜI ĐƯỢC GIAO VÀ CHỌN NGƯỜI PHỤ TRÁCH CHÍNH
                 const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'Danh sách người được giao',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Danh sách người được giao',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                 ),
@@ -314,28 +324,87 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                       'Chưa chọn người được giao.',
                       textAlign: TextAlign.center,
                     ),
+                  )
+                else ...[
+                  // Hướng dẫn chọn người phụ trách chính
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.orange.withValues(alpha: 0.5),
+                      ),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.star,
+                          color: Colors.orange,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Chọn một người làm người phụ trách chính bằng cách nhấn vào nút tròn bên cạnh tên người đó.',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
 
-                ..._selectedUsers.values.map((user) {
-                  return RadioListTile<String>(
-                    value: user.id,
-                    groupValue: _primaryAssigneeId,
-                    title: Text(user.fullName),
-                    subtitle: Text(
-                      '${user.email}\nNgười phụ trách chính',
-                      maxLines: 2,
-                    ),
-                    secondary: const Icon(
-                      Icons.star,
-                      color: Colors.orange,
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        _primaryAssigneeId = value;
-                      });
-                    },
-                  );
-                }),
+                  ..._selectedUsers.values.map((user) {
+                    final isPrimary = user.id == _primaryAssigneeId;
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: RadioListTile<String>(
+                        value: user.id,
+                        groupValue: _primaryAssigneeId,
+                        activeColor: Colors.deepPurple,
+                        title: Text(
+                          user.fullName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(user.email),
+                            if (isPrimary)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 4),
+                                child: Text(
+                                  '★ NGƯỜI PHỤ TRÁCH CHÍNH',
+                                  style: TextStyle(
+                                    color: Colors.deepPurple,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        secondary: Icon(
+                          Icons.star,
+                          color: isPrimary ? Colors.orange : Colors.grey,
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _primaryAssigneeId = value;
+                          });
+                        },
+                      ),
+                    );
+                  }),
+                ],
               ],
             ),
           ),

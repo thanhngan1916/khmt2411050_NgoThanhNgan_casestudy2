@@ -75,6 +75,42 @@ class TaskService {
       data['message'] ?? 'Không thể giao công việc.',
     );
   }
+  // CẬP NHẬT NGƯỜI PHỤ TRÁCH CHÍNH
+  Future<void> updatePrimaryAssignee({
+    required String token,
+    required String taskId,
+    required String userId,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/tasks/$taskId/assignees/$userId',
+    );
+
+    final response = await http.patch(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    dynamic data;
+
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      throw Exception('Backend trả về dữ liệu không hợp lệ.');
+    }
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    throw Exception(
+      data is Map
+          ? data['message'] ?? 'Không thể cập nhật người phụ trách chính.'
+          : 'Không thể cập nhật người phụ trách chính.',
+    );
+  }
 
   Future<List<TaskAssignee>> getUsers({
     required String token,

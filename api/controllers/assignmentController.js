@@ -240,7 +240,7 @@ const removeAssignee = async (req, res) => {
     );
 
     // Đồng bộ danh sách nhận việc.
-    task.receivedBy = task.receivedBy.filter(
+    task.receivedBy = (task.receivedBy || []).filter(
       (receiverId) => receiverId.toString() !== userId
     );
 
