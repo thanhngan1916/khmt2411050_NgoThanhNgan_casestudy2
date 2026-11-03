@@ -80,7 +80,58 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// Tìm kiếm người dùng theo họ tên hoặc email
+const searchUsers = async (req, res) => {
+  try {
+    const keyword = String(req.query.q || '').trim();
+
+    if (keyword.length < 2) {
+      return res.status(400).json({
+        message: 'Vui lòng nhập ít nhất 2 ký tự để tìm kiếm'
+      });
+    }
+
+    const escapedKeyword = keyword.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      '\\$&'
+    );
+
+    const users = await User.find({
+      $or: [
+        {
+          fullName: {
+            $regex: escapedKeyword,
+            $options: 'i'
+          }
+        },
+        {
+          email: {
+            $regex: escapedKeyword,
+            $options: 'i'
+          }
+        }
+      ]
+    })
+      .select('_id fullName email')
+      .limit(10)
+      .lean();
+
+    res.status(200).json({
+      message: 'Tìm kiếm người dùng thành công',
+      users
+    });
+  } catch (error) {
+    console.error('Lỗi tìm kiếm người dùng:', error);
+
+    res.status(500).json({
+      message: 'Không thể tìm kiếm người dùng',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getProfile,
-  updateProfile
+  updateProfile,
+  searchUsers
 };

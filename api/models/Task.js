@@ -43,11 +43,20 @@ const taskSchema = new mongoose.Schema(
      default: 'Chưa thực hiện',
    },
 
+    // Danh sách người được giao công việc
     assignedTo: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     }],
 
+    // Người phụ trách chính
+    primaryAssigneeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+
+    // Danh sách người nhận công việc (giữ lại để tương thích code hiện tại)
     receivedBy: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

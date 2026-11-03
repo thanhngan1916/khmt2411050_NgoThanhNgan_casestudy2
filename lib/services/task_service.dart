@@ -43,12 +43,48 @@ class TaskService {
       'Không thể tải danh sách công việc. Mã lỗi: ${response.statusCode}',
     );
   }
+  Future<void> assignTask({
+    required String token,
+    required String taskId,
+    required List<String> assigneeIds,
+    required String primaryAssigneeId,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/tasks/$taskId/assignees',
+    );
 
+    final response = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'assigneeIds': assigneeIds,
+        'primaryAssigneeId': primaryAssigneeId,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    throw Exception(
+      data['message'] ?? 'Không thể giao công việc.',
+    );
+  }
 
   Future<List<TaskAssignee>> getUsers({
     required String token,
+    String keyword = '',
   }) async {
-    final uri = Uri.parse('$baseUrl/api/auth/users');
+    final uri = Uri.parse('$baseUrl/api/users/search').replace(
+      queryParameters: {
+        'q': keyword.trim().isEmpty ? 'an' : keyword.trim(),
+      },
+    );
 
     final response = await http.get(
       uri,
@@ -58,8 +94,9 @@ class TaskService {
       },
     );
 
+    final data = jsonDecode(response.body);
+
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
       final List<dynamic> users = data['users'] ?? [];
 
       return users
@@ -70,11 +107,10 @@ class TaskService {
     }
 
     throw Exception(
-      'Không thể tải danh sách người dùng. '
-          'Mã lỗi: ${response.statusCode}',
+      data['message'] ??
+          'Không thể tìm kiếm người dùng. Mã lỗi: ${response.statusCode}',
     );
   }
-
 
   Future<Task> createTask({
     required String token,

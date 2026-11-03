@@ -2,16 +2,19 @@
 class TaskAssignee {
   final String id;
   final String fullName;
+  final String email;
 
   TaskAssignee({
     required this.id,
     required this.fullName,
+    this.email = '',
   });
 
   factory TaskAssignee.fromJson(Map<String, dynamic> json) {
     return TaskAssignee(
       id: (json['_id'] ?? json['id'] ?? '').toString(),
       fullName: json['fullName']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
     );
   }
 }
@@ -28,6 +31,7 @@ class Task {
 
   // Danh sách người được giao phụ trách công việc
   final List<TaskAssignee> assignedTo;
+  final String? primaryAssigneeId;
 
   Task({
     required this.id,
@@ -39,6 +43,7 @@ class Task {
     this.status = 'Chưa thực hiện',
     this.taskType = 'Được tạo',
     this.assignedTo = const [],
+    this.primaryAssigneeId,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -59,11 +64,14 @@ class Task {
       status: json['status']?.toString() ?? 'Chưa thực hiện',
       taskType: json['taskType']?.toString() ?? 'Được tạo',
 
-      // Đọc danh sách người phụ trách từ API
+      // Đọc danh sách người được giao
       assignedTo: (json['assignedTo'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .map((item) => TaskAssignee.fromJson(item))
           .toList(),
+
+      // Đọc ID người phụ trách chính
+      primaryAssigneeId: json['primaryAssigneeId']?.toString(),
     );
   }
 

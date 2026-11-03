@@ -50,15 +50,15 @@ const validateAssignedTo = async (assignedTo) => {
 };
 console.log('validateAssignedTo:', typeof validateAssignedTo);
 
+
 // 1. Xem danh sách công việc và sắp xếp
 const getTaskList = async (req, res) => {
   try {
     const userId = req.user.id;
+    const currentUserId = userId.toString();
 
-    // Nhận tiêu chí và thứ tự sắp xếp từ Flutter
     const { sortBy = 'createdAt', order = 'desc' } = req.query;
 
-    // Các tiêu chí sắp xếp được cho phép
     const validSortFields = [
       'dueDate',
       'priority',
@@ -77,34 +77,66 @@ const getTaskList = async (req, res) => {
       });
     }
 
-    // Lấy danh sách công việc người dùng có quyền truy cập
+    // Lấy công việc mà người dùng có quyền truy cập
     const tasks = await Task.find({
       $or: [
-        { userId },
-        { assignedTo: userId },
-        { receivedBy: userId },
-        { sharedWith: userId },
+        { userId: currentUserId },
+        { assignedTo: currentUserId },
+        { receivedBy: currentUserId },
+        { sharedWith: currentUserId },
       ],
-    })
-      .populate('assignedTo', 'fullName email');
+    }).populate('assignedTo', 'fullName email');
+
+    // Xác định loại công việc theo tài khoản đang đăng nhập
+    const classifiedTasks = tasks.map((task) => {
+      const taskData = task.toObject();
+
+      const isCreator =
+        task.userId.toString() === currentUserId;
+
+      const isAssigned = task.assignedTo.some((assignee) => {
+        const assigneeId = assignee._id
+          ? assignee._id.toString()
+          : assignee.toString();
+
+        return assigneeId === currentUserId;
+      });
+
+      const isReceived = task.receivedBy.some(
+        (id) => id.toString() === currentUserId
+      );
+
+      const isShared = task.sharedWith.some(
+        (id) => id.toString() === currentUserId
+      );
+
+      // Ưu tiên phân loại theo vai trò chính
+      if (isCreator) {
+        taskData.taskType = 'Được tạo';
+      } else if (isAssigned) {
+        taskData.taskType = 'Được giao';
+      } else if (isReceived) {
+        taskData.taskType = 'Được nhận';
+      } else if (isShared) {
+        taskData.taskType = 'Được chia sẻ';
+      }
+
+      return taskData;
+    });
 
     const direction = order === 'asc' ? 1 : -1;
 
-    // Sắp xếp danh sách công việc
-    tasks.sort((a, b) => {
+    // Sắp xếp công việc
+    classifiedTasks.sort((a, b) => {
       let result = 0;
 
       if (sortBy === 'dueDate') {
-        // Công việc chưa có hạn hoàn thành được đưa xuống cuối
         if (!a.dueDate && !b.dueDate) return 0;
         if (!a.dueDate) return 1;
         if (!b.dueDate) return -1;
 
         result = new Date(a.dueDate) - new Date(b.dueDate);
-      }
-
-      else if (sortBy === 'priority') {
-        // Mức độ ưu tiên: Cao > Trung bình > Thấp
+      } else if (sortBy === 'priority') {
         const priorityRank = {
           'Cao': 3,
           'Trung bình': 2,
@@ -114,24 +146,20 @@ const getTaskList = async (req, res) => {
         result =
           (priorityRank[a.priority] || 0) -
           (priorityRank[b.priority] || 0);
-      }
-
-      else if (sortBy === 'createdAt') {
+      } else if (sortBy === 'createdAt') {
         result = new Date(a.createdAt) - new Date(b.createdAt);
       }
 
-      // Xử lý thứ tự tăng dần hoặc giảm dần
       if (result !== 0) {
         return result * direction;
       }
 
-      // Nếu bằng nhau, công việc mới tạo được ưu tiên trước
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
 
     res.status(200).json({
       message: 'Lấy danh sách công việc thành công',
-      tasks,
+      tasks: classifiedTasks,
       sortBy,
       order,
     });
@@ -141,6 +169,7 @@ const getTaskList = async (req, res) => {
 
     res.status(500).json({
       message: 'Không thể lấy danh sách công việc',
+      error: error.message,
     });
   }
 };

@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/task.dart';
 import '../../services/task_service.dart';
-
+import '../assignment/assign_task_screen.dart';
 class TaskDetailScreen extends StatefulWidget {
   final Task task;
 
@@ -24,6 +24,21 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   bool _isUpdating = false;
 
   Task get task => widget.task;
+  // HÀM MỞ MÀN HÌNH GIAO VIỆC
+  Future<void> _openAssignTaskScreen() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AssignTaskScreen(
+          task: task,
+        ),
+      ),
+    );
+
+    if (result == true && mounted) {
+      Navigator.pop(context, true);
+    }
+  }
 
   Widget _buildInfo(String label, String value, IconData icon) {
     return Padding(
@@ -489,6 +504,25 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 ),
                 const SizedBox(height: 20),
 
+                // NÚT GIAO CÔNG VIỆC
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (_isDeleting || _isUpdating)
+                        ? null
+                        : _openAssignTaskScreen,
+                    icon: const Icon(Icons.people_alt),
+                    label: const Text('Giao công việc'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
                 // NÚT CHỈNH SỬA CÔNG VIỆC
                 SizedBox(
                   width: double.infinity,
@@ -507,7 +541,8 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 ),
                 const SizedBox(height: 12),
 
-// NÚT CẬP NHẬT TRẠNG THÁI
+
+                // NÚT CẬP NHẬT TRẠNG THÁI
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
