@@ -9,6 +9,7 @@ const taskRoutes = require('./routes/task');
 const authRoutes = require('./routes/auth');
 const assignmentRoutes = require('./routes/assignmentRoutes');
 const userRoutes = require('./routes/userRoutes');
+const taskShareRoutes = require('./routes/taskShareRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,8 +45,12 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 
+
 // Route giao công việc
 app.use('/api/tasks', assignmentRoutes);
+
+// Route chia sẻ công việc
+app.use('/api/tasks', taskShareRoutes);
 
 // Route người dùng
 app.use('/api/users', userRoutes);

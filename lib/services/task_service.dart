@@ -43,6 +43,127 @@ class TaskService {
       'Không thể tải danh sách công việc. Mã lỗi: ${response.statusCode}',
     );
   }
+  // ================= CHIA SẺ CÔNG VIỆC =================
+
+// 1. Chia sẻ công việc cho một hoặc nhiều người
+  Future<void> shareTask({
+    required String token,
+    required String taskId,
+    required List<String> userIds,
+    required String permission,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/tasks/$taskId/shares');
+
+    final response = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'userIds': userIds,
+        'permission': permission,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 201) {
+      return;
+    }
+
+    throw Exception(
+      data['message'] ?? 'Không thể chia sẻ công việc.',
+    );
+  }
+
+// 2. Lấy danh sách người được chia sẻ
+  Future<List<dynamic>> getTaskShares({
+    required String token,
+    required String taskId,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/tasks/$taskId/shares');
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data['shares'] ?? [];
+    }
+
+    throw Exception(
+      data['message'] ?? 'Không thể lấy danh sách chia sẻ.',
+    );
+  }
+
+// 3. Cập nhật quyền chia sẻ
+  Future<void> updateTaskShare({
+    required String token,
+    required String taskId,
+    required String shareId,
+    required String permission,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/tasks/$taskId/shares/$shareId',
+    );
+
+    final response = await http.patch(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'permission': permission,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    throw Exception(
+      data['message'] ?? 'Không thể cập nhật quyền chia sẻ.',
+    );
+  }
+
+// 4. Thu hồi quyền chia sẻ
+  Future<void> deleteTaskShare({
+    required String token,
+    required String taskId,
+    required String shareId,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/tasks/$taskId/shares/$shareId',
+    );
+
+    final response = await http.delete(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    throw Exception(
+      data['message'] ?? 'Không thể thu hồi quyền chia sẻ.',
+    );
+  }
   Future<void> assignTask({
     required String token,
     required String taskId,

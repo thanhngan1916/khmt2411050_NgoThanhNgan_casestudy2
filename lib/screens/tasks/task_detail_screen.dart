@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/task.dart';
 import '../../services/task_service.dart';
 import '../assignment/assign_task_screen.dart';
+import 'task_share_screen.dart';
+
 class TaskDetailScreen extends StatefulWidget {
   final Task task;
 
@@ -38,6 +40,17 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     if (result == true && mounted) {
       Navigator.pop(context, true);
     }
+  }
+  // HÀM MỞ MÀN HÌNH CHIA SẺ CÔNG VIỆC
+  Future<void> _openTaskShareScreen() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TaskShareScreen(
+          task: task,
+        ),
+      ),
+    );
   }
 
   Widget _buildInfo(String label, String value, IconData icon) {
@@ -515,6 +528,24 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     label: const Text('Giao công việc'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+                // NÚT CHIA SẺ CÔNG VIỆC
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (_isDeleting || _isUpdating)
+                        ? null
+                        : _openTaskShareScreen,
+                    icon: const Icon(Icons.share),
+                    label: const Text('Chia sẻ công việc'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
