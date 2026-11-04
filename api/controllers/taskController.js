@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const User = require('../models/User');
+const TaskShare = require('../models/TaskShare');
 
 // Kiểm tra ID công việc
 const validateTaskId = (id) => {
@@ -329,15 +330,31 @@ const updateTask = async (req, res) => {
       });
     }
 
-    const task = await Task.findOne({
-      _id: id,
-      userId,
-    });
+    // Tìm công việc theo ID
+    const task = await Task.findById(id);
 
     if (!task) {
       return res.status(404).json({
-        message: 'Không tìm thấy công việc hoặc bạn không có quyền chỉnh sửa',
+        message: 'Không tìm thấy công việc',
       });
+    }
+
+    // Kiểm tra người dùng có phải chủ sở hữu không
+    const isOwner = task.userId.toString() === userId.toString();
+
+    // Nếu không phải chủ sở hữu, kiểm tra quyền chia sẻ
+    if (!isOwner) {
+      const taskShare = await TaskShare.findOne({
+        taskId: id,
+        userId: userId,
+      });
+
+      // Không có quyền chia sẻ hoặc chỉ có quyền xem
+      if (!taskShare || taskShare.permission !== 'editor') {
+        return res.status(403).json({
+          message: 'Bạn không có quyền chỉnh sửa công việc này',
+        });
+      }
     }
 
     const {

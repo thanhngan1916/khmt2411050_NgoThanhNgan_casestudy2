@@ -2,6 +2,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/task.dart';
 
+class TaskPermissionException implements Exception {
+  final String message;
+
+  TaskPermissionException(this.message);
+
+  @override
+  String toString() => message;
+}
 class TaskService {
   static const String baseUrl = 'http://10.0.2.2:3000';
 
@@ -369,15 +377,36 @@ class TaskService {
       body: jsonEncode(body),
     );
 
-    final data = jsonDecode(response.body);
+    dynamic data;
+
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      throw Exception('Backend trả về dữ liệu không hợp lệ.');
+    }
 
     if (response.statusCode == 200) {
       final taskData = data['task'] ?? data;
-      return Task.fromJson(taskData as Map<String, dynamic>);
+      return Task.fromJson(
+        taskData as Map<String, dynamic>,
+      );
+    }
+
+// Người dùng không có quyền chỉnh sửa
+    if (response.statusCode == 403) {
+      final message = data is Map
+          ? data['message']?.toString()
+          : null;
+
+      throw TaskPermissionException(
+        message ?? 'Bạn không có quyền chỉnh sửa công việc này.',
+      );
     }
 
     throw Exception(
-      data['message'] ?? 'Không thể cập nhật công việc.',
+      data is Map
+          ? data['message'] ?? 'Không thể cập nhật công việc.'
+          : 'Không thể cập nhật công việc.',
     );
   }
 
