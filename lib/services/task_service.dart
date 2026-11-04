@@ -2,6 +2,14 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/task.dart';
 
+class TaskPermissionException implements Exception {
+  final String message;
+
+  TaskPermissionException(this.message);
+
+  @override
+  String toString() => message;
+}
 class TaskService {
   static const String baseUrl = 'http://10.0.2.2:3000';
 
@@ -100,6 +108,46 @@ class TaskService {
 
     throw Exception(
       data['message'] ?? 'Không thể lấy danh sách chia sẻ.',
+    );
+  }
+  // Lấy danh sách người được giao phụ trách công việc
+  Future<List<TaskAssignee>> getTaskAssignees({
+    required String token,
+    required String taskId,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/tasks/$taskId/assignees',
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    dynamic data;
+
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      throw Exception('Backend trả về dữ liệu không hợp lệ.');
+    }
+
+    if (response.statusCode == 200) {
+      final List<dynamic> assignees = data['assignees'] ?? [];
+
+      return assignees
+          .whereType<Map<String, dynamic>>()
+          .map((item) => TaskAssignee.fromJson(item))
+          .toList();
+    }
+
+    throw Exception(
+      data is Map
+          ? data['message'] ?? 'Không thể lấy danh sách người được giao.'
+          : 'Không thể lấy danh sách người được giao.',
     );
   }
 
@@ -369,15 +417,36 @@ class TaskService {
       body: jsonEncode(body),
     );
 
-    final data = jsonDecode(response.body);
+    dynamic data;
+
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      throw Exception('Backend trả về dữ liệu không hợp lệ.');
+    }
 
     if (response.statusCode == 200) {
       final taskData = data['task'] ?? data;
-      return Task.fromJson(taskData as Map<String, dynamic>);
+      return Task.fromJson(
+        taskData as Map<String, dynamic>,
+      );
+    }
+
+// Người dùng không có quyền chỉnh sửa
+    if (response.statusCode == 403) {
+      final message = data is Map
+          ? data['message']?.toString()
+          : null;
+
+      throw TaskPermissionException(
+        message ?? 'Bạn không có quyền chỉnh sửa công việc này.',
+      );
     }
 
     throw Exception(
-      data['message'] ?? 'Không thể cập nhật công việc.',
+      data is Map
+          ? data['message'] ?? 'Không thể cập nhật công việc.'
+          : 'Không thể cập nhật công việc.',
     );
   }
 

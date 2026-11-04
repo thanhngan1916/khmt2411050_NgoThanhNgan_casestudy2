@@ -25,7 +25,91 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   bool _isDeleting = false;
   bool _isUpdating = false;
 
+  bool _isLoadingMembers = true;
+
+  List<TaskAssignee> _assignees = [];
+  List<dynamic> _shares = [];
+
   Task get task => widget.task;
+  @override
+  void initState() {
+    super.initState();
+    _loadMembers();
+  }
+  // Tải danh sách người được giao và người được chia sẻ
+  Future<void> _loadMembers() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Vui lòng đăng nhập lại.');
+      }
+
+      final assignees = await _taskService.getTaskAssignees(
+        token: token,
+        taskId: task.id,
+      );
+
+      final shares = await _taskService.getTaskShares(
+        token: token,
+        taskId: task.id,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _assignees = assignees;
+        _shares = shares;
+        _isLoadingMembers = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoadingMembers = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể tải danh sách thành viên: $e'),
+        ),
+      );
+    }
+  }
+
+  // THÔNG BÁO KHI KHÔNG CÓ QUYỀN CHỈNH SỬA
+  Future<void> _showPermissionDeniedDialog(String message) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          icon: const Icon(
+            Icons.lock_outline,
+            color: Colors.orange,
+            size: 40,
+          ),
+          title: const Text(
+            'Không thể chỉnh sửa',
+            textAlign: TextAlign.center,
+          ),
+          content: Text(
+            message,
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Đóng'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // HÀM MỞ MÀN HÌNH GIAO VIỆC
   Future<void> _openAssignTaskScreen() async {
     final result = await Navigator.push<bool>(
@@ -81,6 +165,98 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       ),
     );
   }
+  // HIỂN THỊ DANH SÁCH NGƯỜI ĐƯỢC GIAO VÀ NGƯỜI ĐƯỢC CHIA SẺ
+  Widget _buildMembersSection() {
+    if (_isLoadingMembers) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 28),
+
+        // Danh sách người được giao
+        const Text(
+          'Người được giao',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        if (_assignees.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Text('Chưa có người được giao'),
+          )
+        else
+          ..._assignees.map((assignee) {
+            final isPrimary = task.primaryAssigneeId == assignee.id;
+
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const CircleAvatar(
+                child: Icon(Icons.person),
+              ),
+              title: Text(assignee.fullName),
+              subtitle: Text(assignee.email),
+              trailing: isPrimary
+                  ? const Chip(
+                label: Text('Phụ trách chính'),
+              )
+                  : null,
+            );
+          }),
+
+        const Divider(height: 28),
+
+        // Danh sách người được chia sẻ
+        const Text(
+          'Người được chia sẻ',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
+        if (_shares.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Text('Chưa chia sẻ công việc'),
+          )
+        else
+          ..._shares.map((share) {
+            final user = share is Map ? share['userId'] : null;
+            final name = user is Map
+                ? user['fullName']?.toString() ?? 'Người dùng'
+                : 'Người dùng';
+            final email = user is Map
+                ? user['email']?.toString() ?? ''
+                : '';
+            final permission = share is Map
+                ? share['permission']?.toString() ?? ''
+                : '';
+
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const CircleAvatar(
+                child: Icon(Icons.person_outline),
+              ),
+              title: Text(name),
+              subtitle: Text(
+                email.isEmpty ? permission : '$email\n$permission',
+              ),
+            );
+          }),
+      ],
+    );
+  }
 
   String _formatDate(DateTime? date) {
     if (date == null) return 'Chưa thiết lập';
@@ -125,9 +301,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         _isUpdating = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi: $error')),
-      );
+      if (error is TaskPermissionException) {
+        await _showPermissionDeniedDialog(error.message);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 // HIỂN THỊ HỘP THOẠI CHỌN TRẠNG THÁI
@@ -199,154 +382,14 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
   // CHỈNH SỬA THÔNG TIN CÔNG VIỆC
+
   Future<void> _editTask() async {
-    final titleController = TextEditingController(text: task.title);
-    final descriptionController =
-    TextEditingController(text: task.description);
-
-    String priority = ['Thấp', 'Trung bình', 'Cao'].contains(task.priority)
-        ? task.priority
-        : 'Trung bình';
-    DateTime? startDate = task.startDate;
-    DateTime? dueDate = task.dueDate;
-
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Chỉnh sửa công việc'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: titleController,
-                      decoration: const InputDecoration(
-                        labelText: 'Tên công việc',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: descriptionController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Mô tả',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: priority,
-                      decoration: const InputDecoration(
-                        labelText: 'Mức độ ưu tiên',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: ['Thấp', 'Trung bình', 'Cao']
-                          .map((value) => DropdownMenuItem(
-                        value: value,
-                        child: Text(value),
-                      ))
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setDialogState(() {
-                            priority = value;
-                          });
-                        }
-                      },
-                    ),
-                    // NÚT CHỌN NGÀY BẮT ĐẦU
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final selected = await showDatePicker(
-                          context: dialogContext,
-                          initialDate: startDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-
-                        if (selected != null) {
-                          setDialogState(() {
-                            startDate = selected;
-
-                            if (dueDate != null &&
-                                dueDate!.isBefore(startDate!)) {
-                              dueDate = null;
-                            }
-                          });
-                        }
-                      },
-                      icon: const Icon(Icons.calendar_month),
-                      label: Text(
-                        startDate == null
-                            ? 'Chọn ngày bắt đầu'
-                            : 'Ngày bắt đầu: ${startDate!.day}/${startDate!.month}/${startDate!.year}',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final selected = await showDatePicker(
-                          context: dialogContext,
-                          initialDate: dueDate ?? DateTime.now(),
-                          firstDate: startDate ?? DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-
-                        if (selected != null) {
-                          setDialogState(() {
-                            dueDate = selected;
-                          });
-                        }
-                      },
-                      icon: const Icon(Icons.calendar_month),
-                      label: Text(
-                        dueDate == null
-                            ? 'Chọn ngày hết hạn'
-                            : 'Hạn: ${dueDate!.day}/${dueDate!.month}/${dueDate!.year}',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Hủy'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    if (titleController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Vui lòng nhập tên công việc'),
-                        ),
-                      );
-                      return;
-                    }
-
-                    Navigator.pop(dialogContext, {
-                      'title': titleController.text.trim(),
-                      'description': descriptionController.text.trim(),
-                      'priority': priority,
-                      'startDate': startDate,
-                      'dueDate': dueDate,
-                    });
-                  },
-                  child: const Text('Lưu'),
-                ),
-              ],
-            );
-          },
-        );
+        return _EditTaskDialog(task: task);
       },
     );
-
-    titleController.dispose();
-    descriptionController.dispose();
 
     if (result == null || !mounted) return;
 
@@ -383,12 +426,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         _isUpdating = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi: $error')),
-      );
+      if (error is TaskPermissionException) {
+        await _showPermissionDeniedDialog(error.message);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $error')),
+        );
+      }
     }
   }
-
   // XÁC NHẬN XÓA
   Future<void> _confirmDelete() async {
     final confirmed = await showDialog<bool>(
@@ -515,8 +561,11 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   task.taskType,
                   Icons.category,
                 ),
-                const SizedBox(height: 20),
 
+// HIỂN THỊ NGƯỜI ĐƯỢC GIAO VÀ NGƯỜI ĐƯỢC CHIA SẺ
+                _buildMembersSection(),
+
+                const SizedBox(height: 20),
                 // NÚT GIAO CÔNG VIỆC
                 SizedBox(
                   width: double.infinity,
@@ -626,3 +675,183 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     );
   }
 }
+class _EditTaskDialog extends StatefulWidget {
+  final Task task;
+
+  const _EditTaskDialog({required this.task});
+
+  @override
+  State<_EditTaskDialog> createState() => _EditTaskDialogState();
+}
+
+class _EditTaskDialogState extends State<_EditTaskDialog> {
+  late final TextEditingController titleController;
+  late final TextEditingController descriptionController;
+
+  late String priority;
+  DateTime? startDate;
+  DateTime? dueDate;
+
+  @override
+  void initState() {
+    super.initState();
+
+    titleController = TextEditingController(text: widget.task.title);
+    descriptionController =
+        TextEditingController(text: widget.task.description);
+
+    priority = ['Thấp', 'Trung bình', 'Cao']
+        .contains(widget.task.priority)
+        ? widget.task.priority
+        : 'Trung bình';
+
+    startDate = widget.task.startDate;
+    dueDate = widget.task.dueDate;
+  }
+
+  @override
+  void dispose() {
+    titleController.dispose();
+    descriptionController.dispose();
+    super.dispose();
+  }
+
+  String formatDate(DateTime? date) {
+    if (date == null) return 'Chưa chọn';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Future<void> pickStartDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: startDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      startDate = selected;
+      if (dueDate != null && dueDate!.isBefore(selected)) {
+        dueDate = null;
+      }
+    });
+  }
+
+  Future<void> pickDueDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: dueDate ?? startDate ?? DateTime.now(),
+      firstDate: startDate ?? DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      dueDate = selected;
+    });
+  }
+
+  void save() {
+    if (titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vui lòng nhập tên công việc'),
+        ),
+      );
+      return;
+    }
+
+    Navigator.pop(context, {
+      'title': titleController.text.trim(),
+      'description': descriptionController.text.trim(),
+      'priority': priority,
+      'startDate': startDate,
+      'dueDate': dueDate,
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Chỉnh sửa công việc'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: 'Tên công việc',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: descriptionController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Mô tả',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: priority,
+              decoration: const InputDecoration(
+                labelText: 'Mức độ ưu tiên',
+                border: OutlineInputBorder(),
+              ),
+              items: ['Thấp', 'Trung bình', 'Cao']
+                  .map((value) => DropdownMenuItem(
+                value: value,
+                child: Text(value),
+              ))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    priority = value;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: pickStartDate,
+              icon: const Icon(Icons.calendar_month),
+              label: Text(
+                startDate == null
+                    ? 'Chọn ngày bắt đầu'
+                    : 'Ngày bắt đầu: ${formatDate(startDate)}',
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: pickDueDate,
+              icon: const Icon(Icons.calendar_month),
+              label: Text(
+                dueDate == null
+                    ? 'Chọn ngày hết hạn'
+                    : 'Hạn: ${formatDate(dueDate)}',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Hủy'),
+        ),
+        ElevatedButton(
+          onPressed: save,
+          child: const Text('Lưu'),
+        ),
+      ],
+    );
+  }
+}
+
