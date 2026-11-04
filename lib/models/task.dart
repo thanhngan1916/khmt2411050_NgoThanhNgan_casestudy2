@@ -1,3 +1,4 @@
+
 // Thông tin người phụ trách công việc
 class TaskAssignee {
   final String id;
@@ -27,7 +28,12 @@ class Task {
   final DateTime? dueDate;
   final String priority;
   final String status;
+
+  // Vai trò tương thích với code cũ
   final String taskType;
+
+  // Danh sách tất cả vai trò của người dùng trên công việc
+  final List<String> taskRoles;
 
   // Danh sách người được giao phụ trách công việc
   final List<TaskAssignee> assignedTo;
@@ -42,11 +48,19 @@ class Task {
     this.priority = 'Trung bình',
     this.status = 'Chưa thực hiện',
     this.taskType = 'Được tạo',
+    this.taskRoles = const [],
     this.assignedTo = const [],
     this.primaryAssigneeId,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
+    final taskType = json['taskType']?.toString() ?? 'Được tạo';
+
+    final taskRoles = (json['taskRoles'] as List<dynamic>?)
+        ?.map((item) => item.toString())
+        .toList() ??
+        [taskType];
+
     return Task(
       id: (json['_id'] ?? json['id'] ?? '').toString(),
       title: json['title']?.toString() ?? '',
@@ -62,7 +76,8 @@ class Task {
 
       priority: json['priority']?.toString() ?? 'Trung bình',
       status: json['status']?.toString() ?? 'Chưa thực hiện',
-      taskType: json['taskType']?.toString() ?? 'Được tạo',
+      taskType: taskType,
+      taskRoles: taskRoles,
 
       // Đọc danh sách người được giao
       assignedTo: (json['assignedTo'] as List<dynamic>? ?? [])

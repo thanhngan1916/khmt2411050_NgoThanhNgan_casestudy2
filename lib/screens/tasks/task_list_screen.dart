@@ -334,6 +334,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
         token: token,
         sortBy: _sortBy,
         order: _sortOrder,
+        scope: ['created', 'assigned', 'received', 'shared'][_selectedTab],
       );
 
       if (!mounted) return;
@@ -385,9 +386,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
       final taskName = _normalizeSearchText(task.title);
       final matchesSearch = taskName.contains(keyword);
 
-      // Giữ nguyên chức năng phân loại 4 tab
-      final matchesTab = task.taskType == _tabs[_selectedTab];
-
       // Lọc theo trạng thái
       final matchesStatus = _selectedStatus == 'Tất cả' ||
           task.status == _selectedStatus;
@@ -403,7 +401,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
           );
 
       return matchesSearch &&
-          matchesTab &&
           matchesStatus &&
           matchesPriority &&
           matchesAssignee;
@@ -414,6 +411,127 @@ class _TaskListScreenState extends State<TaskListScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+  // Hiển thị tổng quan tiến độ công việc
+  Widget _buildProgressOverview() {
+    final total = _tasks.length;
+
+    final notStarted = _tasks
+        .where((task) => task.status == 'Chưa thực hiện')
+        .length;
+
+    final inProgress = _tasks
+        .where((task) => task.status == 'Đang thực hiện')
+        .length;
+
+    final completed = _tasks
+        .where((task) => task.status == 'Đã hoàn thành')
+        .length;
+
+    final progress = total == 0 ? 0.0 : completed / total;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Card(
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Tổng quan tiến độ',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '$total công việc',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 8,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${(progress * 100).round()}%',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              Row(
+                children: [
+                  _buildProgressItem(
+                    'Chưa thực hiện',
+                    notStarted,
+                    Colors.grey,
+                  ),
+                  _buildProgressItem(
+                    'Đang thực hiện',
+                    inProgress,
+                    Colors.orange,
+                  ),
+                  _buildProgressItem(
+                    'Đã hoàn thành',
+                    completed,
+                    Colors.green,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressItem(
+      String label,
+      int count,
+      Color color,
+      ) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 11),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -636,6 +754,12 @@ class _TaskListScreenState extends State<TaskListScreen> {
           ),
 
           const SizedBox(height: 12),
+
+          // TỔNG QUAN TIẾN ĐỘ
+          _buildProgressOverview(),
+
+          const SizedBox(height: 12),
+
           // Giữ nguyên 4 tab phân loại công việc
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -647,7 +771,10 @@ class _TaskListScreenState extends State<TaskListScreen> {
                     label: Text(_tabs[index]),
                     selected: _selectedTab == index,
                     onSelected: (_) {
-                      setState(() => _selectedTab = index);
+                      if (_selectedTab != index) {
+                        setState(() => _selectedTab = index);
+                        _loadTasks();
+                      }
                     },
                   ),
                 );

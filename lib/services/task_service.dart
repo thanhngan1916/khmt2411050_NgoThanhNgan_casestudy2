@@ -14,15 +14,18 @@ class TaskService {
   static const String baseUrl = 'http://10.0.2.2:3000';
 
 
+
   Future<List<Task>> getTasks({
     required String token,
     String sortBy = 'createdAt',
     String order = 'desc',
+    String scope = 'all',
   }) async {
     final uri = Uri.parse('$baseUrl/api/tasks').replace(
       queryParameters: {
         'sortBy': sortBy,
         'order': order,
+        'scope': scope,
       },
     );
 
@@ -51,6 +54,7 @@ class TaskService {
       'Không thể tải danh sách công việc. Mã lỗi: ${response.statusCode}',
     );
   }
+
   // ================= CHIA SẺ CÔNG VIỆC =================
 
 // 1. Chia sẻ công việc cho một hoặc nhiều người
