@@ -11,6 +11,31 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASS,
   },
 });
+function formatDateTime(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === 'Chưa thiết lập' ||
+    value === ''
+  ) {
+    return 'Chưa thiết lập';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
 
 async function sendTaskAssignedEmail({ task, recipient, creatorName }) {
   const subject = `Bạn được giao công việc mới: ${task.title}`;
@@ -127,7 +152,83 @@ Vui lòng đăng nhập Task Manager để xem công việc.
   }
 }
 
+async function sendTaskUpdatedEmail({
+  task,
+  recipient,
+  changes,
+  updaterName,
+}) {
+  const subject = `Công việc đã được cập nhật: ${task.title}`;
+
+  const dateFields = ['Ngày bắt đầu', 'Hạn hoàn thành'];
+
+  const changeDetails = changes
+    .map((change) => {
+      const isDateField = dateFields.includes(change.label);
+
+      const oldValue = isDateField
+        ? formatDateTime(change.oldValue)
+        : change.oldValue;
+
+      const newValue = isDateField
+        ? formatDateTime(change.newValue)
+        : change.newValue;
+
+      return `- ${change.label}:\n  Trước: ${oldValue}\n  Sau: ${newValue}`;
+    })
+    .join('\n\n');
+
+  const emailLog = await EmailLog.create({
+    taskId: task._id,
+    recipientEmail: recipient.email,
+    eventType: 'task_updated',
+    subject,
+    status: 'pending',
+    attempts: 0,
+  });
+
+  try {
+    await transporter.sendMail({
+      from: `"Task Manager" <${process.env.EMAIL_FROM}>`,
+      to: recipient.email,
+      subject,
+      text: `
+Xin chào ${recipient.fullName},
+
+Một công việc mà bạn có liên quan vừa được cập nhật trên Task Manager.
+
+Tên công việc: ${task.title}
+Người cập nhật: ${updaterName || 'Người dùng Task Manager'}
+
+Thông tin thay đổi:
+
+${changeDetails}
+
+Vui lòng đăng nhập Task Manager để xem chi tiết công việc.
+      `,
+    });
+
+    await EmailLog.findByIdAndUpdate(emailLog._id, {
+      status: 'sent',
+      attempts: 1,
+      sentAt: new Date(),
+      errorMessage: '',
+    });
+  } catch (error) {
+    await EmailLog.findByIdAndUpdate(emailLog._id, {
+      status: 'failed',
+      attempts: 1,
+      errorMessage: error.message,
+    });
+
+    console.error(
+      `Lỗi gửi email cập nhật đến ${recipient.email}:`,
+      error.message
+    );
+  }
+}
 module.exports = {
   sendTaskAssignedEmail,
   sendTaskSharedEmail,
+  sendTaskUpdatedEmail,
 };

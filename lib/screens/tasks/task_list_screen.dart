@@ -852,26 +852,23 @@ class _TaskListScreenState extends State<TaskListScreen> {
                       isThreeLine: task.startDate != null ||
                           task.dueDate != null,
                       onTap: () async {
-                        final result =
-                        await Navigator.push<bool>(
+                        final result = await Navigator.push<bool>(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                TaskDetailScreen(task: task),
+                            builder: (context) => TaskDetailScreen(task: task),
                           ),
                         );
 
-                        if (result == true && mounted) {
+                        if (!mounted) return;
+
+                        if (result == true) {
                           await _loadTasks();
 
                           if (!mounted) return;
 
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(
+                          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Cập nhật công việc thành công!',
-                              ),
+                              content: Text('Cập nhật công việc thành công!'),
                               backgroundColor: Colors.green,
                             ),
                           );

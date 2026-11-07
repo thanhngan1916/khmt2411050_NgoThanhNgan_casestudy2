@@ -3,7 +3,10 @@ const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const User = require('../models/User');
 const TaskShare = require('../models/TaskShare');
-const { sendTaskAssignedEmail } = require('../services/emailService');
+const {
+  sendTaskAssignedEmail,
+  sendTaskUpdatedEmail,
+} = require('../services/emailService');
 
 // Kiểm tra ID công việc
 const validateTaskId = (id) => {
@@ -453,6 +456,15 @@ const updateTask = async (req, res) => {
       assignedTo,
     } = req.body;
 
+    const originalTask = {
+      title: task.title,
+      description: task.description || '',
+      startDate: task.startDate ? new Date(task.startDate).getTime() : null,
+      dueDate: task.dueDate ? new Date(task.dueDate).getTime() : null,
+      priority: task.priority,
+      status: task.status,
+    };
+
     if (title !== undefined) {
       if (typeof title !== 'string' || !title.trim()) {
         return res.status(400).json({
@@ -551,8 +563,87 @@ const updateTask = async (req, res) => {
       task.assignedTo = assignedTo;
     }
 
+    const changes = [];
+
+    const addChange = (key, label, oldValue, newValue) => {
+      if (oldValue !== newValue) {
+        changes.push({
+          label,
+          oldValue: oldValue ?? 'Chưa thiết lập',
+          newValue: newValue ?? 'Chưa thiết lập',
+        });
+      }
+    };
+
+    addChange('title', 'Tên công việc', originalTask.title, task.title);
+    addChange('description', 'Mô tả', originalTask.description, task.description || '');
+
+    addChange(
+      'startDate',
+      'Ngày bắt đầu',
+      originalTask.startDate,
+      task.startDate ? new Date(task.startDate).getTime() : null
+    );
+
+    addChange(
+      'dueDate',
+      'Hạn hoàn thành',
+      originalTask.dueDate,
+      task.dueDate ? new Date(task.dueDate).getTime() : null
+    );
+
+    addChange('priority', 'Mức độ ưu tiên', originalTask.priority, task.priority);
+    addChange('status', 'Trạng thái', originalTask.status, task.status);
+
     await task.save();
-    await task.populate('assignedTo', 'fullName email');
+
+    // Lấy thông tin người thực hiện cập nhật
+    const updater = await User.findById(userId).select('fullName');
+
+    // Lấy danh sách người được chia sẻ công việc
+    const shares = await TaskShare.find({
+      taskId: id,
+    }).select('userId');
+
+    // Tổng hợp ID những người có liên quan đến công việc
+    const recipientIds = [
+      task.userId,
+      ...task.assignedTo,
+      ...(task.receivedBy || []),
+      ...(task.sharedWith || []),
+      ...(task.primaryAssigneeId ? [task.primaryAssigneeId] : []),
+      ...shares.map((share) => share.userId),
+    ]
+      .filter(Boolean)
+      .map((id) => id.toString())
+      .filter((id, index, array) => array.indexOf(id) === index)
+      .filter((id) => id !== userId.toString());
+
+    // Lấy thông tin email người nhận
+    const recipients = await User.find({
+      _id: { $in: recipientIds },
+    }).select('fullName email');
+
+    // Chỉ gửi email khi có thông tin thực sự thay đổi
+    if (changes.length > 0) {
+      for (const recipient of recipients) {
+        if (!recipient.email) continue;
+
+        try {
+          await sendTaskUpdatedEmail({
+            task,
+            recipient,
+            changes,
+            updaterName: updater?.fullName || 'Người dùng Task Manager',
+          });
+        } catch (emailError) {
+          console.error(
+            `Lỗi gửi email cập nhật đến ${recipient.email}:`,
+            emailError.message
+          );
+        }
+      }
+    }
 
     return res.status(200).json({
       message: 'Cập nhật công việc thành công',
