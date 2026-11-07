@@ -6,6 +6,7 @@ const TaskShare = require('../models/TaskShare');
 const {
   sendTaskAssignedEmail,
   sendTaskUpdatedEmail,
+  sendTaskCompletedEmail,
 } = require('../services/emailService');
 
 // Kiểm tra ID công việc
@@ -464,6 +465,7 @@ const updateTask = async (req, res) => {
       priority: task.priority,
       status: task.status,
     };
+    const previousStatus = task.status;
 
     if (title !== undefined) {
       if (typeof title !== 'string' || !title.trim()) {
@@ -545,6 +547,9 @@ const updateTask = async (req, res) => {
 
       task.status = status;
     }
+    const isJustCompleted =
+      previousStatus !== 'Đã hoàn thành' &&
+      task.status === 'Đã hoàn thành';
 
     // Cập nhật danh sách người phụ trách
     if (assignedTo !== undefined) {
@@ -624,8 +629,27 @@ const updateTask = async (req, res) => {
       _id: { $in: recipientIds },
     }).select('fullName email');
 
+    if (isJustCompleted) {
+      for (const recipient of recipients) {
+        if (!recipient.email) continue;
+
+        try {
+          await sendTaskCompletedEmail({
+            task,
+            recipient,
+            completerName: updater.fullName,
+          });
+        } catch (error) {
+          console.error(
+            `Lỗi gửi email hoàn thành đến ${recipient.email}:`,
+            error.message
+          );
+        }
+      }
+    }
+
     // Chỉ gửi email khi có thông tin thực sự thay đổi
-    if (changes.length > 0) {
+    if (changes.length > 0 && !isJustCompleted) {
       for (const recipient of recipients) {
         if (!recipient.email) continue;
 

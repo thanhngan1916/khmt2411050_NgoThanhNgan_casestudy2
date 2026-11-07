@@ -227,8 +227,71 @@ Vui lòng đăng nhập Task Manager để xem chi tiết công việc.
     );
   }
 }
+async function sendTaskCompletedEmail({
+  task,
+  recipient,
+  completerName,
+}) {
+  const subject = `Công việc đã hoàn thành: ${task.title}`;
+
+  const completedAt = new Date().toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+
+  const emailLog = await EmailLog.create({
+    taskId: task._id,
+    recipientEmail: recipient.email,
+    eventType: 'task_completed',
+    subject,
+    status: 'pending',
+    attempts: 0,
+  });
+
+  try {
+    await transporter.sendMail({
+      from: `"Task Manager" <${process.env.EMAIL_FROM}>`,
+      to: recipient.email,
+      subject,
+      text: `
+Xin chào ${recipient.fullName},
+
+Một công việc mà bạn có liên quan vừa được hoàn thành trên Task Manager.
+
+Tên công việc: ${task.title}
+Người hoàn thành: ${completerName || 'Người dùng Task Manager'}
+Thời gian hoàn thành: ${completedAt}
+
+Vui lòng đăng nhập Task Manager để xem chi tiết công việc.
+      `,
+    });
+
+    await EmailLog.findByIdAndUpdate(emailLog._id, {
+      status: 'sent',
+      attempts: 1,
+      sentAt: new Date(),
+      errorMessage: '',
+    });
+  } catch (error) {
+    await EmailLog.findByIdAndUpdate(emailLog._id, {
+      status: 'failed',
+      attempts: 1,
+      errorMessage: error.message,
+    });
+
+    console.error(
+      `Lỗi gửi email hoàn thành đến ${recipient.email}:`,
+      error.message
+    );
+  }
+}
 module.exports = {
   sendTaskAssignedEmail,
   sendTaskSharedEmail,
   sendTaskUpdatedEmail,
+  sendTaskCompletedEmail,
 };
