@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const User = require('../models/User');
+const { sendTaskAssignedEmail } = require('../services/emailService');
 
 // Kiểm tra ObjectId hợp lệ
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -69,6 +70,10 @@ const assignTask = async (req, res) => {
       _id: id,
       userId: currentUserId,
     });
+    // Lưu danh sách người đã được giao trước đó để tránh gửi email trùng.
+    const previousAssigneeIds = task
+      ? task.assignedTo.map((userId) => userId.toString())
+      : [];
 
     if (!task) {
       return res.status(404).json({
@@ -126,6 +131,32 @@ const assignTask = async (req, res) => {
     task.primaryAssigneeId = primaryAssigneeId;
 
     await task.save();
+    // Chỉ lấy những người mới được giao công việc.
+    const newlyAssignedUsers = users.filter(
+      (user) => !previousAssigneeIds.includes(user._id.toString())
+    );
+
+    // Lấy tên người tạo công việc.
+    const creator = await User.findById(currentUserId).select('fullName');
+
+    console.log('SO NGUOI MOI DUOC GIAO:', newlyAssignedUsers.length);
+    console.log('DANH SACH EMAIL:', newlyAssignedUsers.map(user => user.email));
+
+    // Gửi email cho những người mới được giao.
+    try {
+      await Promise.all(
+        newlyAssignedUsers.map((recipient) =>
+          sendTaskAssignedEmail({
+            task,
+            recipient,
+            creatorName: creator ? creator.fullName : 'Người dùng',
+          })
+        )
+      );
+    } catch (emailError) {
+      // Lỗi gửi email không làm mất kết quả giao công việc.
+      console.error('Lỗi xử lý gửi email thông báo:', emailError);
+    }
 
     await task.populate('assignedTo', 'fullName email');
     await task.populate('primaryAssigneeId', 'fullName email');

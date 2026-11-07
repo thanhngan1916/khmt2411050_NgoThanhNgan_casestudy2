@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const User = require('../models/User');
 const TaskShare = require('../models/TaskShare');
+const { sendTaskAssignedEmail } = require('../services/emailService');
 
 // Kiểm tra ID công việc
 const validateTaskId = (id) => {
@@ -363,8 +364,32 @@ const createTask = async (req, res) => {
     }
 
     const task = await Task.create(taskData);
-    await task.populate('assignedTo', 'fullName email');
 
+    // Lấy thông tin người tạo công việc
+    const creator = await User.findById(userId).select('fullName');
+
+    // Lấy danh sách người phụ trách
+    const assigneesInfo = await User.find({
+      _id: { $in: assignees },
+    }).select('fullName email');
+
+    // Gửi email cho từng người phụ trách
+    for (const recipient of assigneesInfo) {
+      try {
+        await sendTaskAssignedEmail({
+          task,
+          recipient,
+          creatorName: creator?.fullName || 'Người dùng Task Manager',
+        });
+      } catch (emailError) {
+        console.error(
+          `Lỗi gửi email đến ${recipient.email}:`,
+          emailError.message
+        );
+      }
+    }
+
+    await task.populate('assignedTo', 'fullName email');
     res.status(201).json({
       message: 'Tạo công việc thành công',
       task,
