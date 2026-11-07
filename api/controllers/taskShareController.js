@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const TaskShare = require('../models/TaskShare');
 const User = require('../models/User');
+const { sendTaskSharedEmail } = require('../services/emailService');
 
 // Kiểm tra ID hợp lệ
 const isValidId = (id) => {
@@ -60,6 +61,7 @@ const getTaskShares = async (req, res) => {
 // 2. Chia sẻ công việc cho một hoặc nhiều người
 const shareTask = async (req, res) => {
   try {
+    console.log('========== DA GOI HAM shareTask ==========');
     const { id } = req.params;
     const currentUserId = req.user.id;
 
@@ -108,9 +110,9 @@ const shareTask = async (req, res) => {
     }
 
     // Kiểm tra người dùng có tồn tại
-    const users = await User.find({
-      _id: { $in: uniqueUserIds },
-    }).select('_id');
+   const users = await User.find({
+     _id: { $in: uniqueUserIds },
+   }).select('_id fullName email');
 
     if (users.length !== uniqueUserIds.length) {
       return res.status(400).json({
@@ -157,6 +159,37 @@ const shareTask = async (req, res) => {
         },
       }
     );
+    // Gửi email mời những người vừa được chia sẻ công việc
+    const creator = await User.findById(currentUserId).select('fullName');
+
+    const newRecipients = users.filter((user) =>
+      newUserIds.includes(user._id.toString())
+    );
+
+    console.log('Số người vừa được chia sẻ:', newUserIds.length);
+    console.log('Số người nhận email:', newRecipients.length);
+
+    const emailResults = await Promise.allSettled(
+      newRecipients.map((recipient) =>
+        sendTaskSharedEmail({
+          task,
+          recipient,
+          creatorName: creator?.fullName || 'Người dùng Task Manager',
+          permission,
+        })
+      )
+    );
+
+    emailResults.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(
+          `Lỗi gửi email cho người nhận thứ ${index + 1}:`,
+          result.reason
+        );
+      } else {
+        console.log(`Đã xử lý gửi email cho người nhận thứ ${index + 1}`);
+      }
+    });
 
     const shares = await TaskShare.find({
       taskId: id,

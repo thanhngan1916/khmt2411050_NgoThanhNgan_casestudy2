@@ -64,7 +64,70 @@ Vui lòng đăng nhập Task Manager để xem chi tiết công việc.
     console.error('Loi gui email:', error.message);
   }
 }
+async function sendTaskSharedEmail({
+  task,
+  recipient,
+  creatorName,
+  permission,
+}) {
+  console.log('========== BAT DAU GUI EMAIL CHIA SE ==========');
+  console.log('Email nguoi nhan:', recipient?.email);
+  console.log('Ten cong viec:', task?.title);
+  console.log('Quyen:', permission);
+
+  const permissionText =
+    permission === 'editor'
+      ? 'Chỉnh sửa công việc'
+      : 'Chỉ xem công việc';
+
+  const subject = `Bạn được mời ${permissionText.toLowerCase()}: ${task.title}`;
+
+  const emailLog = await EmailLog.create({
+    taskId: task._id,
+    recipientEmail: recipient.email,
+    eventType: 'task_shared',
+    subject,
+    status: 'pending',
+    attempts: 0,
+  });
+
+  try {
+    await transporter.sendMail({
+      from: `"Task Manager" <${process.env.EMAIL_FROM}>`,
+      to: recipient.email,
+      subject,
+      text: `
+Xin chào ${recipient.fullName},
+
+Bạn vừa được mời truy cập một công việc trên Task Manager.
+
+Tên công việc: ${task.title}
+Người chia sẻ: ${creatorName || 'Người dùng Task Manager'}
+Mô tả: ${task.description || 'Không có mô tả'}
+Quyền được cấp: ${permissionText}
+
+Vui lòng đăng nhập Task Manager để xem công việc.
+      `,
+    });
+
+    await EmailLog.findByIdAndUpdate(emailLog._id, {
+      status: 'sent',
+      attempts: 1,
+      sentAt: new Date(),
+      errorMessage: '',
+    });
+  } catch (error) {
+    await EmailLog.findByIdAndUpdate(emailLog._id, {
+      status: 'failed',
+      attempts: 1,
+      errorMessage: error.message,
+    });
+
+    console.error('Lỗi gửi email mời chia sẻ:', error.message);
+  }
+}
 
 module.exports = {
   sendTaskAssignedEmail,
+  sendTaskSharedEmail,
 };
