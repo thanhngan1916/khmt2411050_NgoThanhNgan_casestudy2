@@ -289,9 +289,103 @@ Vui lòng đăng nhập Task Manager để xem chi tiết công việc.
     );
   }
 }
+
+async function sendTaskReminderEmail({
+  task,
+  recipient,
+  reminderHours,
+  reminderKey,
+}) {
+  const recipientEmail = recipient.email.trim().toLowerCase();
+  const subject = `Nhắc nhở: Công việc "${task.title}" sắp đến hạn`;
+
+  let emailLog;
+
+  try {
+    emailLog = await EmailLog.findOne({
+      taskId: task._id,
+      recipientEmail,
+      eventType: 'task_due_reminder',
+      reminderKey,
+    });
+
+    // Không gửi lại nếu đã gửi thành công.
+    if (emailLog?.status === 'sent') {
+      return true;
+    }
+
+    // Tạo lịch sử mới nếu chưa tồn tại.
+    if (!emailLog) {
+      emailLog = await EmailLog.create({
+        taskId: task._id,
+        recipientEmail,
+        eventType: 'task_due_reminder',
+        subject,
+        status: 'pending',
+        attempts: 0,
+        reminderKey,
+      });
+    } else {
+      // Tái sử dụng lịch sử nếu lần gửi trước thất bại.
+      emailLog.status = 'pending';
+      emailLog.subject = subject;
+      await emailLog.save();
+    }
+
+    await transporter.sendMail({
+      from: `"Task Manager" <${process.env.EMAIL_FROM}>`,
+      to: recipientEmail,
+      subject,
+      text: `
+Xin chào ${recipient.fullName},
+
+Task Manager gửi thông báo nhắc nhở về công việc sắp đến hạn.
+
+Tên công việc: ${task.title}
+Mô tả: ${task.description || 'Không có mô tả'}
+Độ ưu tiên: ${task.priority}
+Hạn hoàn thành: ${
+        task.dueDate
+          ? new Date(task.dueDate).toLocaleString('vi-VN')
+          : 'Chưa thiết lập'
+      }
+
+Công việc sẽ đến hạn trong khoảng ${reminderHours} giờ nữa.
+
+Vui lòng đăng nhập Task Manager để kiểm tra và hoàn thành công việc đúng hạn.
+      `,
+    });
+
+    await EmailLog.findByIdAndUpdate(emailLog._id, {
+      status: 'sent',
+      $inc: { attempts: 1 },
+      sentAt: new Date(),
+      errorMessage: '',
+    });
+
+    return true;
+  } catch (error) {
+    if (emailLog?._id) {
+      await EmailLog.findByIdAndUpdate(emailLog._id, {
+        status: 'failed',
+        $inc: { attempts: 1 },
+        errorMessage: error.message,
+      });
+    }
+
+    console.error(
+      `Lỗi gửi email nhắc hạn đến ${recipientEmail}:`,
+      error.message
+    );
+
+    return false;
+  }
+}
+
 module.exports = {
   sendTaskAssignedEmail,
   sendTaskSharedEmail,
   sendTaskUpdatedEmail,
   sendTaskCompletedEmail,
+  sendTaskReminderEmail,
 };

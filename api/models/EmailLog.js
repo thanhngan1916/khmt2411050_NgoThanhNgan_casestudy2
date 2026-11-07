@@ -50,9 +50,32 @@ const emailLogSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // Khóa nhận diện một lần nhắc hạn để tránh gửi trùng.
+    reminderKey: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,
+  }
+);
+
+// Chỉ áp dụng tính duy nhất cho các email có reminderKey.
+// Các loại email hiện tại không bị ảnh hưởng.
+emailLogSchema.index(
+  {
+    taskId: 1,
+    recipientEmail: 1,
+    eventType: 1,
+    reminderKey: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      reminderKey: { $type: 'string' },
+    },
   }
 );
 

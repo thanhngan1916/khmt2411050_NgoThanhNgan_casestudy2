@@ -10,6 +10,11 @@ const authRoutes = require('./routes/auth');
 const assignmentRoutes = require('./routes/assignmentRoutes');
 const userRoutes = require('./routes/userRoutes');
 const taskShareRoutes = require('./routes/taskShareRoutes');
+const cron = require('node-cron');
+
+const {
+  checkDueTaskReminders,
+} = require('./services/taskReminderService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -64,6 +69,23 @@ async function startServer() {
 
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('Ket noi MongoDB thanh cong!');
+
+    // Khởi chạy lịch kiểm tra nhắc việc.
+    const reminderCron =
+      process.env.TASK_REMINDER_CHECK_CRON || '*/5 * * * *';
+
+    if (!cron.validate(reminderCron)) {
+      throw new Error('TASK_REMINDER_CHECK_CRON không hợp lệ.');
+    }
+
+    cron.schedule(reminderCron, () => {
+      console.log('Dang kiem tra cong viec can nhac han...');
+      checkDueTaskReminders();
+    });
+
+    console.log(
+      `Lich nhac viec da kich hoat: ${reminderCron}`
+    );
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server dang chay tai http://localhost:${PORT}`);
