@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/tasks/task_list_screen.dart';
+import 'screens/notifications/notification_screen.dart';
+
 void main() {
   runApp(const TaskManagerApp());
 }
@@ -351,6 +353,24 @@ class HomePage extends StatelessWidget {
                   },
                   icon: const Icon(Icons.person_outline),
                   label: const Text('Thông tin cá nhân'),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Nút mở màn hình thông báo
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.notifications_outlined),
+                  label: const Text('Thông báo'),
                 ),
               ),
 

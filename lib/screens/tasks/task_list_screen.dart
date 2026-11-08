@@ -866,7 +866,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
                           if (!mounted) return;
 
-                          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                          ScaffoldMessenger.of(this.context).showSnackBar(
                             const SnackBar(
                               content: Text('Cập nhật công việc thành công!'),
                               backgroundColor: Colors.green,

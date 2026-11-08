@@ -2,6 +2,9 @@ const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const User = require('../models/User');
 const { sendTaskAssignedEmail } = require('../services/emailService');
+const {
+  createNotifications,
+} = require('../services/notificationService');
 
 // Kiểm tra ObjectId hợp lệ
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
@@ -135,6 +138,15 @@ const assignTask = async (req, res) => {
     const newlyAssignedUsers = users.filter(
       (user) => !previousAssigneeIds.includes(user._id.toString())
     );
+    // Tạo thông báo trong ứng dụng cho những người mới được giao.
+    await createNotifications({
+      recipientIds: newlyAssignedUsers.map((user) => user._id),
+      actorId: currentUserId,
+      task,
+      type: 'TASK_ASSIGNED',
+      title: 'Bạn được giao công việc mới',
+      message: `Bạn vừa được giao công việc "${task.title}".`,
+    });
 
     // Lấy tên người tạo công việc.
     const creator = await User.findById(currentUserId).select('fullName');

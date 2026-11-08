@@ -54,6 +54,45 @@ class TaskService {
       'Không thể tải danh sách công việc. Mã lỗi: ${response.statusCode}',
     );
   }
+  // LẤY CHI TIẾT MỘT CÔNG VIỆC THEO ID
+  Future<Task> getTaskDetail({
+    required String token,
+    required String taskId,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/tasks/$taskId');
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    dynamic data;
+
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      throw Exception('Backend trả về dữ liệu không hợp lệ.');
+    }
+
+    if (response.statusCode == 200) {
+      final taskData = data['task'];
+
+      if (taskData is Map<String, dynamic>) {
+        return Task.fromJson(taskData);
+      }
+
+      throw Exception('Không tìm thấy dữ liệu công việc.');
+    }
+
+    throw Exception(
+      data is Map
+          ? data['message'] ?? 'Không thể lấy chi tiết công việc.'
+          : 'Không thể lấy chi tiết công việc.',
+    );
+  }
 
   // LẤY LỊCH SỬ GỬI EMAIL CỦA CÔNG VIỆC
   Future<List<dynamic>> getTaskEmailLogs({

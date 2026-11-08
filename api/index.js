@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth');
 const assignmentRoutes = require('./routes/assignmentRoutes');
 const userRoutes = require('./routes/userRoutes');
 const taskShareRoutes = require('./routes/taskShareRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const cron = require('node-cron');
 
 const {
@@ -59,6 +60,9 @@ app.use('/api/tasks', taskShareRoutes);
 
 // Route người dùng
 app.use('/api/users', userRoutes);
+
+// Route thông báo
+app.use('/api/notifications', notificationRoutes);
 
 // Kết nối MongoDB trước khi khởi động server
 async function startServer() {

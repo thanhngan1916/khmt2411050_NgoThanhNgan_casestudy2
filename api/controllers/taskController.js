@@ -8,7 +8,9 @@ const {
   sendTaskUpdatedEmail,
   sendTaskCompletedEmail,
 } = require('../services/emailService');
-
+const {
+  createNotifications,
+} = require('../services/notificationService');
 
 // Kiểm tra ID công việc
 const validateTaskId = (id) => {
@@ -624,6 +626,18 @@ const updateTask = async (req, res) => {
       .map((id) => id.toString())
       .filter((id, index, array) => array.indexOf(id) === index)
       .filter((id) => id !== userId.toString());
+
+      // Chỉ tạo thông báo khi trạng thái công việc thực sự thay đổi.
+      if (previousStatus !== task.status) {
+        await createNotifications({
+          recipientIds,
+          actorId: userId,
+          task,
+          type: 'TASK_STATUS_CHANGED',
+          title: 'Trạng thái công việc đã thay đổi',
+          message: `Công việc "${task.title}" đã chuyển từ "${previousStatus}" sang "${task.status}".`,
+        });
+      }
 
     // Lấy thông tin email người nhận
     const recipients = await User.find({

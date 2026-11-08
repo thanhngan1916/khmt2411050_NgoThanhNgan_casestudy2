@@ -5,6 +5,9 @@ const Task = require('../models/Task');
 const TaskShare = require('../models/TaskShare');
 const User = require('../models/User');
 const { sendTaskSharedEmail } = require('../services/emailService');
+const {
+  createNotifications,
+} = require('../services/notificationService');
 
 // Kiểm tra ID hợp lệ
 const isValidId = (id) => {
@@ -149,6 +152,15 @@ const shareTask = async (req, res) => {
     }));
 
     await TaskShare.insertMany(shareData);
+    // Tạo thông báo trong ứng dụng cho những người vừa được chia sẻ.
+    await createNotifications({
+      recipientIds: newUserIds,
+      actorId: currentUserId,
+      task,
+      type: 'TASK_SHARED',
+      title: 'Bạn được chia sẻ công việc',
+      message: `Bạn vừa được chia sẻ công việc "${task.title}".`,
+    });
 
     // Đồng bộ danh sách sharedWith trong Task
     await Task.updateOne(
