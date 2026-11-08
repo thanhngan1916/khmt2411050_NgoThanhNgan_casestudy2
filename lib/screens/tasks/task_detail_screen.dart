@@ -6,6 +6,7 @@ import '../../models/task.dart';
 import '../../services/task_service.dart';
 import '../assignment/assign_task_screen.dart';
 import 'task_share_screen.dart';
+import 'email_history_screen.dart';
 
 class TaskDetailScreen extends StatefulWidget {
   final Task task;
@@ -132,6 +133,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       MaterialPageRoute(
         builder: (context) => TaskShareScreen(
           task: task,
+        ),
+      ),
+    );
+  }
+  void _openEmailHistoryScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EmailHistoryScreen(
+          taskId: widget.task.id.toString(),
         ),
       ),
     );
@@ -566,6 +577,25 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 _buildMembersSection(),
 
                 const SizedBox(height: 20),
+
+// NÚT XEM LỊCH SỬ GỬI EMAIL
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (_isDeleting || _isUpdating)
+                        ? null
+                        : _openEmailHistoryScreen,
+                    icon: const Icon(Icons.email_outlined),
+                    label: const Text('Lịch sử gửi email'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
                 // NÚT GIAO CÔNG VIỆC
                 SizedBox(
                   width: double.infinity,

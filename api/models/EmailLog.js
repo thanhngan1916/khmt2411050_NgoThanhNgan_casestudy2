@@ -13,19 +13,22 @@ const emailLogSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      lowercase: true,
     },
 
     eventType: {
       type: String,
       required: true,
-      default: 'task_assigned',
+      trim: true,
     },
 
     subject: {
       type: String,
       required: true,
       trim: true,
+    },
+    emailText: {
+      type: String,
+      default: '',
     },
 
     status: {
@@ -51,7 +54,6 @@ const emailLogSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Khóa nhận diện một lần nhắc hạn để tránh gửi trùng.
     reminderKey: {
       type: String,
       default: null,
@@ -59,23 +61,6 @@ const emailLogSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
-);
-
-// Chỉ áp dụng tính duy nhất cho các email có reminderKey.
-// Các loại email hiện tại không bị ảnh hưởng.
-emailLogSchema.index(
-  {
-    taskId: 1,
-    recipientEmail: 1,
-    eventType: 1,
-    reminderKey: 1,
-  },
-  {
-    unique: true,
-    partialFilterExpression: {
-      reminderKey: { $type: 'string' },
-    },
   }
 );
 

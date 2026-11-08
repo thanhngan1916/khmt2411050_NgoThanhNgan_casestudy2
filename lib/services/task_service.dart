@@ -55,6 +55,78 @@ class TaskService {
     );
   }
 
+  // LẤY LỊCH SỬ GỬI EMAIL CỦA CÔNG VIỆC
+  Future<List<dynamic>> getTaskEmailLogs({
+    required String token,
+    required String taskId,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/tasks/$taskId/email-logs',
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    dynamic data;
+
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      throw Exception('Backend trả về dữ liệu không hợp lệ.');
+    }
+
+    if (response.statusCode == 200) {
+      return data['emailLogs'] ?? [];
+    }
+
+    throw Exception(
+      data is Map
+          ? data['message'] ?? 'Không thể tải lịch sử email.'
+          : 'Không thể tải lịch sử email.',
+    );
+  }
+
+  // GỬI LẠI EMAIL ĐÃ THẤT BẠI
+  Future<void> retryTaskEmail({
+    required String token,
+    required String emailLogId,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/tasks/email-logs/$emailLogId/retry',
+    );
+
+    final response = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    dynamic data;
+
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      throw Exception('Backend trả về dữ liệu không hợp lệ.');
+    }
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    throw Exception(
+      data is Map
+          ? data['message'] ?? 'Không thể gửi lại email.'
+          : 'Không thể gửi lại email.',
+    );
+  }
+
   // ================= CHIA SẺ CÔNG VIỆC =================
 
 // 1. Chia sẻ công việc cho một hoặc nhiều người
