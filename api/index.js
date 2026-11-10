@@ -11,6 +11,7 @@ const assignmentRoutes = require('./routes/assignmentRoutes');
 const userRoutes = require('./routes/userRoutes');
 const taskShareRoutes = require('./routes/taskShareRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const statisticsRoutes = require('./routes/statisticsRoutes');
 const cron = require('node-cron');
 
 const {
@@ -63,6 +64,9 @@ app.use('/api/users', userRoutes);
 
 // Route thông báo
 app.use('/api/notifications', notificationRoutes);
+
+// Route thống kê công việc
+app.use('/api/statistics', statisticsRoutes);
 
 // Kết nối MongoDB trước khi khởi động server
 async function startServer() {

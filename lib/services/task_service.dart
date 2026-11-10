@@ -14,6 +14,45 @@ class TaskService {
   static const String baseUrl = 'http://10.0.2.2:3000';
 
 
+  // LẤY THỐNG KÊ CÔNG VIỆC THEO TRẠNG THÁI
+  Future<Map<String, int>> getTaskStatistics({
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/statistics/tasks');
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    dynamic data;
+
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      throw Exception('Backend trả về dữ liệu thống kê không hợp lệ.');
+    }
+
+    if (response.statusCode == 200) {
+      final statistics = data['statistics'];
+
+      return {
+        'total': statistics['total'] ?? 0,
+        'notStarted': statistics['notStarted'] ?? 0,
+        'inProgress': statistics['inProgress'] ?? 0,
+        'completed': statistics['completed'] ?? 0,
+      };
+    }
+
+    throw Exception(
+      data is Map
+          ? data['message'] ?? 'Không thể tải thống kê công việc.'
+          : 'Không thể tải thống kê công việc.',
+    );
+  }
 
   Future<List<Task>> getTasks({
     required String token,

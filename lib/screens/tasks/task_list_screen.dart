@@ -39,6 +39,16 @@ class _TaskListScreenState extends State<TaskListScreen> {
   String? _error;
   int _selectedTab = 0;
 
+  // Dữ liệu thống kê công việc từ Backend
+  Map<String, int> _statistics = {
+    'total': 0,
+    'notStarted': 0,
+    'inProgress': 0,
+    'completed': 0,
+  };
+
+  bool _isStatisticsLoading = true;
+
 // Các giá trị lọc
   String _selectedStatus = 'Tất cả';
   String _selectedPriority = 'Tất cả';
@@ -67,7 +77,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
     _loadTasks();
     _loadUsers();
   }
-
   Future<void> _showCreateTaskDialog() async {
     final pageContext = context;
     final titleController = TextEditingController();
@@ -320,6 +329,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
       _error = null;
     });
 
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
@@ -330,14 +340,35 @@ class _TaskListScreenState extends State<TaskListScreen> {
         );
       }
 
+      // Xác định phạm vi công việc theo tab đang chọn
+      String scope;
+
+      switch (_selectedTab) {
+        case 0:
+          scope = 'created';
+          break;
+        case 1:
+          scope = 'assigned';
+          break;
+        case 2:
+          scope = 'received';
+          break;
+        case 3:
+          scope = 'shared';
+          break;
+        default:
+          scope = 'all';
+      }
+
       final tasks = await _taskService.getTasks(
         token: token,
-        sortBy: _sortBy,
-        order: _sortOrder,
-        scope: ['created', 'assigned', 'received', 'shared'][_selectedTab],
+        scope: scope,
       );
 
       if (!mounted) return;
+
+// Tải lại thống kê công việc
+      _loadTaskStatistics();
 
       setState(() {
         _tasks = tasks;
@@ -352,6 +383,42 @@ class _TaskListScreenState extends State<TaskListScreen> {
       });
     }
   }
+
+
+  // Tải thống kê công việc từ API
+  Future<void> _loadTaskStatistics() async {
+    try {
+      // Lấy token đăng nhập đã lưu
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Bạn chưa đăng nhập.');
+      }
+
+      // Gọi API thống kê từ Backend
+      final statistics = await _taskService.getTaskStatistics(
+        token: token,
+      );
+
+      if (!mounted) return;
+
+      // Cập nhật số liệu lên giao diện
+      setState(() {
+        _statistics = statistics;
+        _isStatisticsLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Lỗi tải thống kê: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isStatisticsLoading = false;
+      });
+    }
+  }
+
   Future<void> _loadUsers() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -413,20 +480,12 @@ class _TaskListScreenState extends State<TaskListScreen> {
     super.dispose();
   }
   // Hiển thị tổng quan tiến độ công việc
+
   Widget _buildProgressOverview() {
-    final total = _tasks.length;
-
-    final notStarted = _tasks
-        .where((task) => task.status == 'Chưa thực hiện')
-        .length;
-
-    final inProgress = _tasks
-        .where((task) => task.status == 'Đang thực hiện')
-        .length;
-
-    final completed = _tasks
-        .where((task) => task.status == 'Đã hoàn thành')
-        .length;
+    final total = _statistics['total'] ?? 0;
+    final notStarted = _statistics['notStarted'] ?? 0;
+    final inProgress = _statistics['inProgress'] ?? 0;
+    final completed = _statistics['completed'] ?? 0;
 
     final progress = total == 0 ? 0.0 : completed / total;
 
@@ -450,7 +509,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                     ),
                   ),
                   Text(
-                    '$total công việc',
+                    _isStatisticsLoading ? 'Đang tải...' : '$total công việc',
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                     ),
@@ -464,14 +523,16 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 children: [
                   Expanded(
                     child: LinearProgressIndicator(
-                      value: progress,
+                      value: _isStatisticsLoading ? null : progress,
                       minHeight: 8,
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    '${(progress * 100).round()}%',
+                    _isStatisticsLoading
+                        ? '--'
+                        : '${(progress * 100).round()}%',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                     ),
@@ -485,17 +546,17 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 children: [
                   _buildProgressItem(
                     'Chưa thực hiện',
-                    notStarted,
+                    _isStatisticsLoading ? 0 : notStarted,
                     Colors.grey,
                   ),
                   _buildProgressItem(
                     'Đang thực hiện',
-                    inProgress,
+                    _isStatisticsLoading ? 0 : inProgress,
                     Colors.orange,
                   ),
                   _buildProgressItem(
                     'Đã hoàn thành',
-                    completed,
+                    _isStatisticsLoading ? 0 : completed,
                     Colors.green,
                   ),
                 ],
@@ -506,6 +567,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
       ),
     );
   }
+
 
   Widget _buildProgressItem(
       String label,
