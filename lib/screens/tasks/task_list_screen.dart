@@ -49,6 +49,12 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
   bool _isStatisticsLoading = true;
 
+  // Dữ liệu thống kê công việc được giao và đang phụ trách
+  Map<String, int> _assignmentStatistics = {
+    'assigned': 0,
+    'responsible': 0,
+  };
+
 // Các giá trị lọc
   String _selectedStatus = 'Tất cả';
   String _selectedPriority = 'Tất cả';
@@ -386,9 +392,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
 
   // Tải thống kê công việc từ API
+  // Tải thống kê công việc từ API
   Future<void> _loadTaskStatistics() async {
     try {
-      // Lấy token đăng nhập đã lưu
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
 
@@ -396,16 +402,22 @@ class _TaskListScreenState extends State<TaskListScreen> {
         throw Exception('Bạn chưa đăng nhập.');
       }
 
-      // Gọi API thống kê từ Backend
+      // Lấy thống kê công việc theo trạng thái
       final statistics = await _taskService.getTaskStatistics(
+        token: token,
+      );
+
+      // Lấy thống kê công việc được giao và đang phụ trách
+      final assignmentStatistics =
+      await _taskService.getAssignmentStatistics(
         token: token,
       );
 
       if (!mounted) return;
 
-      // Cập nhật số liệu lên giao diện
       setState(() {
         _statistics = statistics;
+        _assignmentStatistics = assignmentStatistics;
         _isStatisticsLoading = false;
       });
     } catch (e) {
@@ -590,6 +602,75 @@ class _TaskListScreenState extends State<TaskListScreen> {
             label,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+  // Hiển thị thống kê công việc được giao và đang phụ trách
+  Widget _buildAssignmentOverview() {
+    final assigned = _assignmentStatistics['assigned'] ?? 0;
+    final responsible = _assignmentStatistics['responsible'] ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Card(
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Thống kê phân công công việc',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _buildAssignmentItem(
+                    'Công việc được giao',
+                    _isStatisticsLoading ? 0 : assigned,
+                    Colors.deepPurple,
+                  ),
+                  _buildAssignmentItem(
+                    'Đang phụ trách',
+                    _isStatisticsLoading ? 0 : responsible,
+                    Colors.blue,
+                  ),
+                ],
+              ),
+              if (_isStatisticsLoading) ...[
+                const SizedBox(height: 8),
+                const LinearProgressIndicator(),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAssignmentItem(String label, int count, Color color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12),
           ),
         ],
       ),
@@ -819,6 +900,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
           // TỔNG QUAN TIẾN ĐỘ
           _buildProgressOverview(),
+
+          const SizedBox(height: 8),
+
+// THỐNG KÊ CÔNG VIỆC ĐƯỢC GIAO VÀ ĐANG PHỤ TRÁCH
+          _buildAssignmentOverview(),
 
           const SizedBox(height: 12),
 

@@ -243,8 +243,6 @@ const getTaskList = async (req, res) => {
   }
 };
 
-
-
 // 2. Xem chi tiết công việc
 const getTaskDetail = async (req, res) => {
   try {

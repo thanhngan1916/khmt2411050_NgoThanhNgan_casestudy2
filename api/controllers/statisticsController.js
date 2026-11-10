@@ -73,7 +73,38 @@ const getTaskStatistics = async (req, res) => {
     });
   }
 };
+// Thống kê công việc được giao và công việc đang phụ trách
+const getAssignmentStatistics = async (req, res) => {
+  try {
+    const userObjectId = new mongoose.Types.ObjectId(req.user.id);
 
+    // Đếm công việc được giao cho người dùng
+    const assignedCount = await Task.countDocuments({
+      assignedTo: userObjectId,
+    });
+
+    // Đếm công việc người dùng đang phụ trách chính
+    const responsibleCount = await Task.countDocuments({
+      primaryAssigneeId: userObjectId,
+    });
+
+    return res.status(200).json({
+      message: 'Thống kê công việc được giao và đang phụ trách thành công',
+      statistics: {
+        assigned: assignedCount,
+        responsible: responsibleCount,
+      },
+    });
+  } catch (error) {
+    console.error('Lỗi thống kê công việc được giao:', error);
+
+    return res.status(500).json({
+      message: 'Không thể thống kê công việc được giao',
+      error: error.message,
+    });
+  }
+};
 module.exports = {
   getTaskStatistics,
+  getAssignmentStatistics,
 };

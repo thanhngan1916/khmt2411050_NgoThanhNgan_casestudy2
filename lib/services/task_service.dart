@@ -53,6 +53,43 @@ class TaskService {
           : 'Không thể tải thống kê công việc.',
     );
   }
+  // LẤY THỐNG KÊ CÔNG VIỆC ĐƯỢC GIAO VÀ ĐANG PHỤ TRÁCH
+  Future<Map<String, int>> getAssignmentStatistics({
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/statistics/assignments');
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    dynamic data;
+
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      throw Exception('Backend trả về dữ liệu thống kê không hợp lệ.');
+    }
+
+    if (response.statusCode == 200) {
+      final statistics = data['statistics'];
+
+      return {
+        'assigned': statistics['assigned'] ?? 0,
+        'responsible': statistics['responsible'] ?? 0,
+      };
+    }
+
+    throw Exception(
+      data is Map
+          ? data['message'] ?? 'Không thể tải thống kê công việc được giao.'
+          : 'Không thể tải thống kê công việc được giao.',
+    );
+  }
 
   Future<List<Task>> getTasks({
     required String token,
