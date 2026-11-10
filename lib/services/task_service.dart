@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/task.dart';
+import '../models/task_activity.dart';
 
 class TaskPermissionException implements Exception {
   final String message;
@@ -250,6 +251,49 @@ class TaskService {
       data is Map
           ? data['message'] ?? 'Không thể tải lịch sử email.'
           : 'Không thể tải lịch sử email.',
+    );
+  }
+  // LẤY LỊCH SỬ HOẠT ĐỘNG CỦA CÔNG VIỆC
+  Future<List<TaskActivity>> getTaskActivities({
+    required String token,
+    required String taskId,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/tasks/$taskId/activities',
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    dynamic data;
+
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      throw Exception('Backend trả về dữ liệu không hợp lệ.');
+    }
+
+    if (response.statusCode == 200) {
+      final List<dynamic> activities = data['activities'] ?? [];
+
+      return activities
+          .map(
+            (item) => TaskActivity.fromJson(
+          item as Map<String, dynamic>,
+        ),
+      )
+          .toList();
+    }
+
+    throw Exception(
+      data is Map
+          ? data['message'] ?? 'Không thể tải lịch sử hoạt động.'
+          : 'Không thể tải lịch sử hoạt động.',
     );
   }
 

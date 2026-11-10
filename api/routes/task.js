@@ -1,9 +1,14 @@
 const express = require('express');
                         const router = express.Router();
+
                         const {
                           getTaskEmailLogs,
                           retryTaskEmail,
                         } = require('../controllers/emailLogController');
+
+                        const {
+                          getTaskActivities,
+                        } = require('../controllers/taskActivityController');
 
                         console.log('TASK ROUTER DA DUOC NAP');
 
@@ -24,6 +29,7 @@ const express = require('express');
                         router.post('/', createTask);
                         router.get('/:id', getTaskDetail);
                         router.get('/:id/email-logs', getTaskEmailLogs);
+                        router.get('/:id/activities', getTaskActivities);
                         router.post('/email-logs/:id/retry', retryTaskEmail);
                         router.put('/:id', updateTask);
                         router.delete('/:id', deleteTask);

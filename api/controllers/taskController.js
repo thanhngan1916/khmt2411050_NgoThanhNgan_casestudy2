@@ -12,6 +12,10 @@ const {
   createNotifications,
 } = require('../services/notificationService');
 
+const {
+  createTaskActivity,
+} = require('../services/taskActivityService');
+
 // Kiểm tra ID công việc
 const validateTaskId = (id) => {
   return mongoose.Types.ObjectId.isValid(id);
@@ -370,6 +374,16 @@ const createTask = async (req, res) => {
 
     const task = await Task.create(taskData);
 
+    await createTaskActivity({
+      taskId: task._id,
+      userId,
+      action: 'create',
+      details: {
+        message: 'Tạo công việc',
+        title: task.title,
+      },
+    });
+
     // Lấy thông tin người tạo công việc
     const creator = await User.findById(userId).select('fullName');
 
@@ -602,6 +616,20 @@ const updateTask = async (req, res) => {
     addChange('status', 'Trạng thái', originalTask.status, task.status);
 
     await task.save();
+
+    if (changes.length > 0) {
+      await createTaskActivity({
+        taskId: task._id,
+        userId,
+        action: previousStatus !== task.status
+          ? 'status_changed'
+          : 'update',
+        details: {
+          message: 'Cập nhật công việc',
+          changes,
+        },
+      });
+    }
 
     // Lấy thông tin người thực hiện cập nhật
     const updater = await User.findById(userId).select('fullName');

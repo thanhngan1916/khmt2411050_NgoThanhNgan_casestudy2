@@ -7,6 +7,7 @@ import '../../services/task_service.dart';
 import '../assignment/assign_task_screen.dart';
 import 'task_share_screen.dart';
 import 'email_history_screen.dart';
+import 'task_activity_screen.dart';
 
 class TaskDetailScreen extends StatefulWidget {
   final Task task;
@@ -142,6 +143,17 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => EmailHistoryScreen(
+          taskId: widget.task.id.toString(),
+        ),
+      ),
+    );
+  }
+  // MỞ MÀN HÌNH LỊCH SỬ HOẠT ĐỘNG
+  void _openTaskActivityScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TaskActivityScreen(
           taskId: widget.task.id.toString(),
         ),
       ),
@@ -625,6 +637,24 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     label: const Text('Chia sẻ công việc'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+                // NÚT XEM LỊCH SỬ HOẠT ĐỘNG
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: (_isDeleting || _isUpdating)
+                        ? null
+                        : _openTaskActivityScreen,
+                    icon: const Icon(Icons.history),
+                    label: const Text('Lịch sử hoạt động'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepPurple,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
