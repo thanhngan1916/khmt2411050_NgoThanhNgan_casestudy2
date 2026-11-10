@@ -347,40 +347,32 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text('Cập nhật trạng thái'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  RadioListTile<String>(
-                    title: const Text('Chưa thực hiện'),
-                    value: 'Chưa thực hiện',
-                    groupValue: selectedStatus,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedStatus = value!;
-                      });
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('Đang thực hiện'),
-                    value: 'Đang thực hiện',
-                    groupValue: selectedStatus,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedStatus = value!;
-                      });
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('Đã hoàn thành'),
-                    value: 'Đã hoàn thành',
-                    groupValue: selectedStatus,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedStatus = value!;
-                      });
-                    },
-                  ),
-                ],
+              content: RadioGroup<String>(
+                groupValue: selectedStatus,
+                onChanged: (value) {
+                  if (value == null) return;
+
+                  setDialogState(() {
+                    selectedStatus = value;
+                  });
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const RadioListTile<String>(
+                      title: Text('Chưa thực hiện'),
+                      value: 'Chưa thực hiện',
+                    ),
+                    const RadioListTile<String>(
+                      title: Text('Đang thực hiện'),
+                      value: 'Đang thực hiện',
+                    ),
+                    const RadioListTile<String>(
+                      title: Text('Đã hoàn thành'),
+                      value: 'Đã hoàn thành',
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(

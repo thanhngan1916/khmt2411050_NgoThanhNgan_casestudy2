@@ -164,49 +164,50 @@ class _ChangePrimaryAssigneeScreenState
 
           // Danh sách người được giao
           Expanded(
-            child: ListView.builder(
-              itemCount: assignees.length,
-              itemBuilder: (context, index) {
-                final user = assignees[index];
+            child: RadioGroup<String>(
+              groupValue: _selectedAssigneeId,
+              onChanged: (value) {
+                if (_isSaving) return;
 
-                final isCurrentPrimary =
-                    user.id == widget.task.primaryAssigneeId;
-
-                return RadioListTile<String>(
-                  value: user.id,
-                  groupValue: _selectedAssigneeId,
-                  title: Text(user.fullName),
-                  subtitle: Column(
-                    crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                    children: [
-                      if (user.email.isNotEmpty)
-                        Text(user.email),
-                      if (isCurrentPrimary)
-                        const Text(
-                          'Người phụ trách chính hiện tại',
-                          style: TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                    ],
-                  ),
-                  secondary: Icon(
-                    Icons.star,
-                    color: _selectedAssigneeId == user.id
-                        ? Colors.orange
-                        : Colors.grey,
-                  ),
-                  onChanged: _isSaving
-                      ? null
-                      : (value) {
-                    setState(() {
-                      _selectedAssigneeId = value;
-                    });
-                  },
-                );
+                setState(() {
+                  _selectedAssigneeId = value;
+                });
               },
+              child: ListView.builder(
+                itemCount: assignees.length,
+                itemBuilder: (context, index) {
+                  final user = assignees[index];
+
+                  final isCurrentPrimary =
+                      user.id == widget.task.primaryAssigneeId;
+
+                  return RadioListTile<String>(
+                    value: user.id,
+                    title: Text(user.fullName),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (user.email.isNotEmpty)
+                          Text(user.email),
+                        if (isCurrentPrimary)
+                          const Text(
+                            'Người phụ trách chính hiện tại',
+                            style: TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
+                    ),
+                    secondary: Icon(
+                      Icons.star,
+                      color: _selectedAssigneeId == user.id
+                          ? Colors.orange
+                          : Colors.grey,
+                    ),
+                  );
+                },
+              ),
             ),
           ),
 

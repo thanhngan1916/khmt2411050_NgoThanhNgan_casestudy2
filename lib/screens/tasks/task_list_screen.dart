@@ -1,5 +1,7 @@
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'task_detail_screen.dart';
 import '../../models/task.dart';
 import '../../services/task_service.dart';
@@ -12,62 +14,15 @@ class TaskListScreen extends StatefulWidget {
 }
 
 class _TaskListScreenState extends State<TaskListScreen> {
+  final TaskService _taskService = TaskService();
+  final TextEditingController _searchController = TextEditingController();
+
   final List<String> _tabs = [
     'Được tạo',
     'Được giao',
     'Được nhận',
     'Được chia sẻ',
   ];
-  String _normalizeSearchText(String text) {
-    return text
-        .toLowerCase()
-        .trim()
-        .replaceAll(RegExp('[àáạảãâầấậẩẫăằắặẳẵ]'), 'a')
-        .replaceAll(RegExp('[èéẹẻẽêềếệểễ]'), 'e')
-        .replaceAll(RegExp('[ìíịỉĩ]'), 'i')
-        .replaceAll(RegExp('[òóọỏõôồốộổỗơờớợởỡ]'), 'o')
-        .replaceAll(RegExp('[ùúụủũưừứựửữ]'), 'u')
-        .replaceAll(RegExp('[ỳýỵỷỹ]'), 'y')
-        .replaceAll('đ', 'd');
-  }
-  final TaskService _taskService = TaskService();
-  final TextEditingController _searchController = TextEditingController();
-
-  List<Task> _tasks = [];
-  bool _isLoading = true;
-  List<TaskAssignee> _users = [];
-  String? _error;
-  int _selectedTab = 0;
-
-// Danh sách công việc theo hạn hoàn thành
-  List<Task> _upcomingTasks = [];
-  List<Task> _overdueTasks = [];
-  bool _isDeadlineLoading = true;
-
-  // Dữ liệu thống kê công việc từ Backend
-  Map<String, int> _statistics = {
-    'total': 0,
-    'notStarted': 0,
-    'inProgress': 0,
-    'completed': 0,
-  };
-
-  bool _isStatisticsLoading = true;
-
-  // Dữ liệu thống kê công việc được giao và đang phụ trách
-  Map<String, int> _assignmentStatistics = {
-    'assigned': 0,
-    'responsible': 0,
-  };
-
-// Các giá trị lọc
-  String _selectedStatus = 'Tất cả';
-  String _selectedPriority = 'Tất cả';
-  String _selectedAssignee = 'Tất cả';
-
-// Tiêu chí sắp xếp
-  String _sortBy = 'createdAt';
-  String _sortOrder = 'desc';
 
   final List<String> _statusOptions = [
     'Tất cả',
@@ -82,15 +37,283 @@ class _TaskListScreenState extends State<TaskListScreen> {
     'Trung bình',
     'Cao',
   ];
+
+  List<Task> _tasks = [];
+  List<TaskAssignee> _users = [];
+
+  bool _isLoading = true;
+  bool _isCreatingTask = false;
+
+  String? _error;
+
+  int _selectedTab = 0;
+
+  // Công việc theo hạn hoàn thành
+  List<Task> _upcomingTasks = [];
+  List<Task> _overdueTasks = [];
+
+  bool _isDeadlineLoading = true;
+  String? _deadlineError;
+
+  // Thống kê công việc
+  Map<String, int> _statistics = {
+    'total': 0,
+    'notStarted': 0,
+    'inProgress': 0,
+    'completed': 0,
+  };
+
+  bool _isStatisticsLoading = true;
+  String? _statisticsError;
+
+  // Thống kê phân công
+  Map<String, int> _assignmentStatistics = {
+    'assigned': 0,
+    'responsible': 0,
+  };
+
+  // Bộ lọc
+  String _selectedStatus = 'Tất cả';
+  String _selectedPriority = 'Tất cả';
+  String _selectedAssignee = 'Tất cả';
+
+  // Sắp xếp
+  String _sortBy = 'createdAt';
+  String _sortOrder = 'desc';
+
   @override
   void initState() {
     super.initState();
+
     _loadTasks();
     _loadUsers();
     _loadDeadlineTasks();
   }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Chuẩn hóa tiếng Việt để tìm kiếm không dấu
+  String _normalizeSearchText(String text) {
+    return text
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp('[àáạảãâầấậẩẫăằắặẳẵ]'), 'a')
+        .replaceAll(RegExp('[èéẹẻẽêềếệểễ]'), 'e')
+        .replaceAll(RegExp('[ìíịỉĩ]'), 'i')
+        .replaceAll(RegExp('[òóọỏõôồốộổỗơờớợởỡ]'), 'o')
+        .replaceAll(RegExp('[ùúụủũưừứựửữ]'), 'u')
+        .replaceAll(RegExp('[ỳýỵỷỹ]'), 'y')
+        .replaceAll('đ', 'd');
+  }
+
+  // Xác định phạm vi công việc theo tab
+  String _getSelectedScope() {
+    switch (_selectedTab) {
+      case 0:
+        return 'created';
+      case 1:
+        return 'assigned';
+      case 2:
+        return 'received';
+      case 3:
+        return 'shared';
+      default:
+        return 'all';
+    }
+  }
+
+  // Tải danh sách công việc
+  Future<void> _loadTasks() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Bạn chưa đăng nhập hoặc chưa lưu token.');
+      }
+
+      final tasks = await _taskService.getTasks(
+        token: token,
+        scope: _getSelectedScope(),
+        sortBy: _sortBy,
+        order: _sortOrder,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _tasks = tasks;
+        _isLoading = false;
+      });
+
+      // Tải thống kê sau khi tải danh sách thành công
+      _loadTaskStatistics();
+    } catch (e) {
+      debugPrint('Lỗi tải danh sách công việc: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _error = 'Không thể tải danh sách công việc. Vui lòng thử lại.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Tải thống kê công việc
+  Future<void> _loadTaskStatistics() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isStatisticsLoading = true;
+      _statisticsError = null;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Bạn chưa đăng nhập.');
+      }
+
+      final statistics = await _taskService.getTaskStatistics(
+        token: token,
+      );
+
+      final assignmentStatistics =
+      await _taskService.getAssignmentStatistics(
+        token: token,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _statistics = statistics;
+        _assignmentStatistics = assignmentStatistics;
+        _isStatisticsLoading = false;
+        _statisticsError = null;
+      });
+    } catch (e) {
+      debugPrint('Lỗi tải thống kê: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isStatisticsLoading = false;
+        _statisticsError = 'Không thể tải dữ liệu thống kê.';
+      });
+    }
+  }
+
+  // Tải công việc sắp đến hạn và quá hạn
+  Future<void> _loadDeadlineTasks() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isDeadlineLoading = true;
+      _deadlineError = null;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Bạn chưa đăng nhập.');
+      }
+
+      final result = await _taskService.getDeadlineTasks(
+        token: token,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _upcomingTasks = result['upcoming'] ?? [];
+        _overdueTasks = result['overdue'] ?? [];
+        _isDeadlineLoading = false;
+        _deadlineError = null;
+      });
+    } catch (e) {
+      debugPrint('Lỗi tải công việc theo hạn: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isDeadlineLoading = false;
+        _deadlineError =
+        'Không thể tải công việc theo hạn hoàn thành.';
+      });
+    }
+  }
+
+  // Tải danh sách người dùng
+  Future<void> _loadUsers() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) return;
+
+      final users = await _taskService.getUsers(token: token);
+
+      if (!mounted) return;
+
+      setState(() {
+        _users = users;
+      });
+    } catch (e) {
+      debugPrint('Lỗi tải danh sách người dùng: $e');
+    }
+  }
+
+  // Danh sách người phụ trách
+  List<TaskAssignee> get _assigneeOptions => _users;
+
+  // Lọc công việc
+  List<Task> get _filteredTasks {
+    final keyword = _normalizeSearchText(_searchController.text);
+
+    return _tasks.where((task) {
+      final taskName = _normalizeSearchText(task.title);
+      final matchesSearch = taskName.contains(keyword);
+
+      final matchesStatus = _selectedStatus == 'Tất cả' ||
+          task.status == _selectedStatus;
+
+      final matchesPriority = _selectedPriority == 'Tất cả' ||
+          task.priority == _selectedPriority;
+
+      final matchesAssignee = _selectedAssignee == 'Tất cả' ||
+          task.assignedTo.any(
+                (assignee) => assignee.id == _selectedAssignee,
+          );
+
+      return matchesSearch &&
+          matchesStatus &&
+          matchesPriority &&
+          matchesAssignee;
+    }).toList();
+  }
+
+  // Thêm công việc
   Future<void> _showCreateTaskDialog() async {
+    if (_isCreatingTask) return;
+
     final pageContext = context;
+
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
 
@@ -98,7 +321,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
     DateTime? startDate;
     DateTime? dueDate;
 
-// Danh sách ID người phụ trách được chọn
     List<String> selectedAssigneeIds = [];
 
     final result = await showDialog<Map<String, dynamic>>(
@@ -130,14 +352,14 @@ class _TaskListScreenState extends State<TaskListScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: priority,
+                      initialValue: priority,
                       decoration: const InputDecoration(
                         labelText: 'Mức độ ưu tiên',
                         border: OutlineInputBorder(),
                       ),
                       items: ['Thấp', 'Trung bình', 'Cao']
                           .map(
-                            (value) => DropdownMenuItem(
+                            (value) => DropdownMenuItem<String>(
                           value: value,
                           child: Text(value),
                         ),
@@ -145,17 +367,20 @@ class _TaskListScreenState extends State<TaskListScreen> {
                           .toList(),
                       onChanged: (value) {
                         if (value != null) {
-                          setDialogState(() => priority = value);
+                          setDialogState(() {
+                            priority = value;
+                          });
                         }
                       },
                     ),
                     const SizedBox(height: 12),
-                    // CHỌN NGƯỜI PHỤ TRÁCH
 
+                    // Chọn người phụ trách
                     DropdownButtonFormField<String>(
-                      value: selectedAssigneeIds.isNotEmpty &&
+                      initialValue: selectedAssigneeIds.isNotEmpty &&
                           _assigneeOptions.any(
-                                (user) => user.id == selectedAssigneeIds.first,
+                                (user) =>
+                            user.id == selectedAssigneeIds.first,
                           )
                           ? selectedAssigneeIds.first
                           : null,
@@ -183,7 +408,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // NÚT CHỌN NGÀY BẮT ĐẦU
+                    // Chọn ngày bắt đầu
                     OutlinedButton.icon(
                       onPressed: () async {
                         final today = DateUtils.dateOnly(DateTime.now());
@@ -215,10 +440,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
                             : 'Bắt đầu: ${startDate!.day}/${startDate!.month}/${startDate!.year}',
                       ),
                     ),
-
                     const SizedBox(height: 12),
 
-                    // NÚT CHỌN HẠN HOÀN THÀNH
+                    // Chọn hạn hoàn thành
                     OutlinedButton.icon(
                       onPressed: () async {
                         final today = DateUtils.dateOnly(DateTime.now());
@@ -284,13 +508,16 @@ class _TaskListScreenState extends State<TaskListScreen> {
       },
     );
 
-    // Đợi hộp thoại đóng hoàn toàn rồi mới giải phóng controller
-    await Future.delayed(const Duration(milliseconds: 300));
-
+    // Giải phóng controller sau khi hộp thoại đóng
     titleController.dispose();
     descriptionController.dispose();
 
     if (result == null || !mounted) return;
+
+    setState(() {
+      _isCreatingTask = true;
+    });
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
@@ -312,224 +539,37 @@ class _TaskListScreenState extends State<TaskListScreen> {
       if (!mounted) return;
 
       await _loadTasks();
+      await _loadDeadlineTasks();
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(pageContext).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Thêm công việc thành công!'),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
+      debugPrint('Lỗi thêm công việc: $e');
+
       if (!mounted) return;
 
-      ScaffoldMessenger.of(pageContext).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lỗi: $e'),
+          content: Text('Không thể thêm công việc: $e'),
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCreatingTask = false;
+        });
+      }
     }
   }
 
-  Future<void> _loadTasks() async {
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-
-      if (token == null || token.isEmpty) {
-        throw Exception(
-          'Bạn chưa đăng nhập hoặc chưa lưu token.',
-        );
-      }
-
-      // Xác định phạm vi công việc theo tab đang chọn
-      String scope;
-
-      switch (_selectedTab) {
-        case 0:
-          scope = 'created';
-          break;
-        case 1:
-          scope = 'assigned';
-          break;
-        case 2:
-          scope = 'received';
-          break;
-        case 3:
-          scope = 'shared';
-          break;
-        default:
-          scope = 'all';
-      }
-
-      final tasks = await _taskService.getTasks(
-        token: token,
-        scope: scope,
-      );
-
-      if (!mounted) return;
-
-// Tải lại thống kê công việc
-      _loadTaskStatistics();
-
-      setState(() {
-        _tasks = tasks;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
-  }
-
-
-  // Tải thống kê công việc từ API
-  // Tải thống kê công việc từ API
-  Future<void> _loadTaskStatistics() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-
-      if (token == null || token.isEmpty) {
-        throw Exception('Bạn chưa đăng nhập.');
-      }
-
-      // Lấy thống kê công việc theo trạng thái
-      final statistics = await _taskService.getTaskStatistics(
-        token: token,
-      );
-
-      // Lấy thống kê công việc được giao và đang phụ trách
-      final assignmentStatistics =
-      await _taskService.getAssignmentStatistics(
-        token: token,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _statistics = statistics;
-        _assignmentStatistics = assignmentStatistics;
-        _isStatisticsLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Lỗi tải thống kê: $e');
-
-      if (!mounted) return;
-
-      setState(() {
-        _isStatisticsLoading = false;
-      });
-    }
-  }
-  // Tải danh sách công việc sắp đến hạn và quá hạn
-  Future<void> _loadDeadlineTasks() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-
-      if (token == null || token.isEmpty) {
-        throw Exception('Bạn chưa đăng nhập.');
-      }
-
-      final result = await _taskService.getDeadlineTasks(
-        token: token,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _upcomingTasks = result['upcoming'] ?? [];
-        _overdueTasks = result['overdue'] ?? [];
-        _isDeadlineLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Lỗi tải công việc theo hạn: $e');
-
-      if (!mounted) return;
-
-      setState(() {
-        _isDeadlineLoading = false;
-      });
-    }
-  }
-
-  Future<void> _loadUsers() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-
-      if (token == null || token.isEmpty) {
-        return;
-      }
-
-      final users = await _taskService.getUsers(token: token);
-
-      if (!mounted) return;
-
-      setState(() {
-        _users = users;
-      });
-    } catch (e) {
-      debugPrint('Lỗi tải danh sách người dùng: $e');
-    }
-  }
-  // Lấy danh sách người phụ trách không trùng lặp
-  List<TaskAssignee> get _assigneeOptions {
-    return _users;
-  }
-
-  List<Task> get _filteredTasks {
-
-    final keyword = _normalizeSearchText(_searchController.text);
-
-    return _tasks.where((task) {
-      // Tìm kiếm theo tên không dấu
-      final taskName = _normalizeSearchText(task.title);
-      final matchesSearch = taskName.contains(keyword);
-
-      // Lọc theo trạng thái
-      final matchesStatus = _selectedStatus == 'Tất cả' ||
-          task.status == _selectedStatus;
-
-      // Lọc theo mức độ ưu tiên
-      final matchesPriority = _selectedPriority == 'Tất cả' ||
-          task.priority == _selectedPriority;
-
-      // Lọc theo người phụ trách
-      final matchesAssignee = _selectedAssignee == 'Tất cả' ||
-          task.assignedTo.any(
-                (assignee) => assignee.id == _selectedAssignee,
-          );
-
-      return matchesSearch &&
-          matchesStatus &&
-          matchesPriority &&
-          matchesAssignee;
-    }).toList();
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-  // Hiển thị tổng quan tiến độ công việc
-
+  // Hiển thị tổng quan tiến độ
   Widget _buildProgressOverview() {
     final total = _statistics['total'] ?? 0;
     final notStarted = _statistics['notStarted'] ?? 0;
@@ -558,65 +598,79 @@ class _TaskListScreenState extends State<TaskListScreen> {
                     ),
                   ),
                   Text(
-                    _isStatisticsLoading ? 'Đang tải...' : '$total công việc',
+                    _isStatisticsLoading
+                        ? 'Đang tải...'
+                        : '$total công việc',
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
-
               const SizedBox(height: 12),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: _isStatisticsLoading ? null : progress,
-                      minHeight: 8,
-                      borderRadius: BorderRadius.circular(8),
+              if (_isStatisticsLoading)
+                const LinearProgressIndicator()
+              else if (_statisticsError != null)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _statisticsError!,
+                      style: const TextStyle(color: Colors.red),
                     ),
+                    TextButton.icon(
+                      onPressed: _loadTaskStatistics,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Thử tải lại thống kê'),
+                    ),
+                  ],
+                )
+              else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '${(progress * 100).round()}%',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Text(
-                    _isStatisticsLoading
-                        ? '--'
-                        : '${(progress * 100).round()}%',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      _buildProgressItem(
+                        'Chưa thực hiện',
+                        notStarted,
+                        Colors.grey,
+                      ),
+                      _buildProgressItem(
+                        'Đang thực hiện',
+                        inProgress,
+                        Colors.orange,
+                      ),
+                      _buildProgressItem(
+                        'Đã hoàn thành',
+                        completed,
+                        Colors.green,
+                      ),
+                    ],
                   ),
                 ],
-              ),
-
-              const SizedBox(height: 12),
-
-              Row(
-                children: [
-                  _buildProgressItem(
-                    'Chưa thực hiện',
-                    _isStatisticsLoading ? 0 : notStarted,
-                    Colors.grey,
-                  ),
-                  _buildProgressItem(
-                    'Đang thực hiện',
-                    _isStatisticsLoading ? 0 : inProgress,
-                    Colors.orange,
-                  ),
-                  _buildProgressItem(
-                    'Đã hoàn thành',
-                    _isStatisticsLoading ? 0 : completed,
-                    Colors.green,
-                  ),
-                ],
-              ),
             ],
           ),
         ),
       ),
     );
   }
-
 
   Widget _buildProgressItem(
       String label,
@@ -644,7 +698,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
       ),
     );
   }
-  // Hiển thị thống kê công việc được giao và đang phụ trách
+
+  // Thống kê phân công
   Widget _buildAssignmentOverview() {
     final assigned = _assignmentStatistics['assigned'] ?? 0;
     final responsible = _assignmentStatistics['responsible'] ?? 0;
@@ -666,24 +721,28 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  _buildAssignmentItem(
-                    'Công việc được giao',
-                    _isStatisticsLoading ? 0 : assigned,
-                    Colors.deepPurple,
-                  ),
-                  _buildAssignmentItem(
-                    'Đang phụ trách',
-                    _isStatisticsLoading ? 0 : responsible,
-                    Colors.blue,
-                  ),
-                ],
-              ),
-              if (_isStatisticsLoading) ...[
-                const SizedBox(height: 8),
-                const LinearProgressIndicator(),
-              ],
+              if (_isStatisticsLoading)
+                const LinearProgressIndicator()
+              else if (_statisticsError != null)
+                Text(
+                  _statisticsError!,
+                  style: const TextStyle(color: Colors.red),
+                )
+              else
+                Row(
+                  children: [
+                    _buildAssignmentItem(
+                      'Công việc được giao',
+                      assigned,
+                      Colors.deepPurple,
+                    ),
+                    _buildAssignmentItem(
+                      'Đang phụ trách',
+                      responsible,
+                      Colors.blue,
+                    ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -691,7 +750,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
-  Widget _buildAssignmentItem(String label, int count, Color color) {
+  Widget _buildAssignmentItem(
+      String label,
+      int count,
+      Color color,
+      ) {
     return Expanded(
       child: Column(
         children: [
@@ -713,7 +776,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
       ),
     );
   }
-  // Hiển thị danh sách công việc theo hạn hoàn thành
+
+  // Công việc theo hạn hoàn thành
   Widget _buildDeadlineOverview() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -735,6 +799,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
           subtitle: Text(
             _isDeadlineLoading
                 ? 'Đang tải dữ liệu...'
+                : _deadlineError != null
+                ? 'Không thể tải dữ liệu'
                 : 'Sắp đến hạn: ${_upcomingTasks.length} • Quá hạn: ${_overdueTasks.length}',
             style: const TextStyle(fontSize: 12),
           ),
@@ -744,33 +810,52 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 padding: EdgeInsets.all(12),
                 child: LinearProgressIndicator(),
               )
+            else if (_deadlineError != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    Text(
+                      _deadlineError!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                    TextButton.icon(
+                      onPressed: _loadDeadlineTasks,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Thử lại'),
+                    ),
+                  ],
+                ),
+              )
             else ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: _buildDeadlineSection(
-                  title: 'Sắp đến hạn',
-                  tasks: _upcomingTasks,
-                  color: Colors.orange,
-                  icon: Icons.schedule,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: _buildDeadlineSection(
+                    title: 'Sắp đến hạn',
+                    tasks: _upcomingTasks,
+                    color: Colors.orange,
+                    icon: Icons.schedule,
+                  ),
                 ),
-              ),
-              const Divider(),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: _buildDeadlineSection(
-                  title: 'Đã quá hạn',
-                  tasks: _overdueTasks,
-                  color: Colors.red,
-                  icon: Icons.warning_amber,
+                const Divider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: _buildDeadlineSection(
+                    title: 'Đã quá hạn',
+                    tasks: _overdueTasks,
+                    color: Colors.red,
+                    icon: Icons.warning_amber,
+                  ),
                 ),
-              ),
-            ],
+              ],
           ],
         ),
       ),
     );
   }
-// Hiển thị từng nhóm công việc
+
+  // Hiển thị từng nhóm công việc
   Widget _buildDeadlineSection({
     required String title,
     required List<Task> tasks,
@@ -802,7 +887,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
           ],
         ),
         const SizedBox(height: 8),
-
         if (tasks.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
@@ -826,7 +910,9 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(
-                'Hạn: ${task.dueDate!.day}/${task.dueDate!.month}/${task.dueDate!.year}',
+                task.dueDate == null
+                    ? 'Chưa có hạn hoàn thành'
+                    : 'Hạn: ${task.dueDate!.day}/${task.dueDate!.month}/${task.dueDate!.year}',
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () async {
@@ -850,6 +936,32 @@ class _TaskListScreenState extends State<TaskListScreen> {
     );
   }
 
+  // Mở chi tiết công việc
+  Future<void> _openTaskDetail(Task task) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TaskDetailScreen(task: task),
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (result == true) {
+      await _loadTasks();
+      await _loadDeadlineTasks();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cập nhật công việc thành công!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tasks = _filteredTasks;
@@ -860,266 +972,269 @@ class _TaskListScreenState extends State<TaskListScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            onPressed: _loadTasks,
+            onPressed: _isLoading
+                ? null
+                : () {
+              _loadTasks();
+              _loadDeadlineTasks();
+            },
             icon: const Icon(Icons.refresh),
             tooltip: 'Làm mới',
           ),
         ],
       ),
-        body: Column(
-            children: [
-            Expanded(
+      body: Column(
+        children: [
+          Expanded(
             flex: 2,
             child: SingleChildScrollView(
               child: Column(
                 children: [
                   const SizedBox(height: 12),
-          // Tìm kiếm theo tên công việc
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Tìm kiếm công việc...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ),
 
-          // Lọc theo trạng thái và mức độ ưu tiên
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedStatus,
-                    decoration: const InputDecoration(
-                      labelText: 'Trạng thái',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 12,
-                      ),
-                    ),
-                    items: _statusOptions.map((value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(
-                          value,
-                          overflow: TextOverflow.ellipsis,
+                  // Tìm kiếm
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Tìm kiếm công việc...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedStatus = value;
-                        });
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedPriority,
-                    decoration: const InputDecoration(
-                      labelText: 'Ưu tiên',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 12,
                       ),
                     ),
-                    items: _priorityOptions.map((value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedPriority = value;
-                        });
-                      }
-                    },
                   ),
-                ),
-              ],
-            ),
-          ),
 
-          const SizedBox(height: 12),
-
-          // Lọc theo người phụ trách
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: DropdownButtonFormField<String>(
-              value: _selectedAssignee,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Người phụ trách',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                const DropdownMenuItem<String>(
-                  value: 'Tất cả',
-                  child: Text('Tất cả người phụ trách'),
-                ),
-                ..._assigneeOptions.map(
-                      (assignee) => DropdownMenuItem<String>(
-                    value: assignee.id,
-                    child: Text(assignee.fullName),
-                  ),
-                ),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _selectedAssignee = value ?? 'Tất cả';
-                });
-              },
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-// SẮP XẾP CÔNG VIỆC
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                // Tiêu chí sắp xếp
-                Expanded(
-                  flex: 3,
-                  child: DropdownButtonFormField<String>(
-                    value: _sortBy,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Sắp xếp theo',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 12,
-                      ),
+                  // Lọc trạng thái và ưu tiên
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _selectedStatus,
+                            decoration: const InputDecoration(
+                              labelText: 'Trạng thái',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 12,
+                              ),
+                            ),
+                            items: _statusOptions.map((value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(
+                                  value,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedStatus = value;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _selectedPriority,
+                            decoration: const InputDecoration(
+                              labelText: 'Ưu tiên',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 12,
+                              ),
+                            ),
+                            items: _priorityOptions.map((value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedPriority = value;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'dueDate',
-                        child: Text('Hạn hoàn thành'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'priority',
-                        child: Text('Mức độ ưu tiên'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'createdAt',
-                        child: Text('Thời gian tạo'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _sortBy = value;
-                        });
-                        _loadTasks();
-                      }
-                    },
                   ),
-                ),
 
-                const SizedBox(width: 12),
+                  const SizedBox(height: 12),
 
-                // Thứ tự sắp xếp
-                Expanded(
-                  flex: 2,
-                  child: DropdownButtonFormField<String>(
-                    value: _sortOrder,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Thứ tự',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 12,
+                  // Lọc người phụ trách
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _selectedAssignee,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Người phụ trách',
+                        border: OutlineInputBorder(),
                       ),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: 'Tất cả',
+                          child: Text('Tất cả người phụ trách'),
+                        ),
+                        ..._assigneeOptions.map(
+                              (assignee) => DropdownMenuItem<String>(
+                            value: assignee.id,
+                            child: Text(assignee.fullName),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedAssignee = value ?? 'Tất cả';
+                        });
+                      },
                     ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'asc',
-                        child: Text('Tăng dần'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'desc',
-                        child: Text('Giảm dần'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _sortOrder = value;
-                        });
-                        _loadTasks();
-                      }
-                    },
                   ),
-                ),
-              ],
-            ),
-          ),
 
-          const SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
-          // TỔNG QUAN TIẾN ĐỘ
-          _buildProgressOverview(),
-
-          const SizedBox(height: 8),
-
-// THỐNG KÊ CÔNG VIỆC ĐƯỢC GIAO VÀ ĐANG PHỤ TRÁCH
-          _buildAssignmentOverview(),
-
-          const SizedBox(height: 8),
-
-// CÔNG VIỆC SẮP ĐẾN HẠN VÀ ĐÃ QUÁ HẠN
-          _buildDeadlineOverview(),
-
-          const SizedBox(height: 12),
-
-          // Giữ nguyên 4 tab phân loại công việc
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: List.generate(_tabs.length, (index) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: ChoiceChip(
-                    label: Text(_tabs[index]),
-                    selected: _selectedTab == index,
-                    onSelected: (_) {
-                      if (_selectedTab != index) {
-                        setState(() => _selectedTab = index);
-                        _loadTasks();
-                      }
-                    },
+                  // Sắp xếp
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _sortBy,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Sắp xếp theo',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 12,
+                              ),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'dueDate',
+                                child: Text('Hạn hoàn thành'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'priority',
+                                child: Text('Mức độ ưu tiên'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'createdAt',
+                                child: Text('Thời gian tạo'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _sortBy = value;
+                                });
+                                _loadTasks();
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _sortOrder,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Thứ tự',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 12,
+                              ),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'asc',
+                                child: Text('Tăng dần'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'desc',
+                                child: Text('Giảm dần'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() {
+                                  _sortOrder = value;
+                                });
+                                _loadTasks();
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                );
-              }),
-            ),
-          ),
 
-          const SizedBox(height: 8),
+                  const SizedBox(height: 12),
+
+                  _buildProgressOverview(),
+
+                  const SizedBox(height: 8),
+
+                  _buildAssignmentOverview(),
+
+                  const SizedBox(height: 8),
+
+                  _buildDeadlineOverview(),
+
+                  const SizedBox(height: 12),
+
+                  // Các tab công việc
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: List.generate(_tabs.length, (index) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: ChoiceChip(
+                            label: Text(_tabs[index]),
+                            selected: _selectedTab == index,
+                            onSelected: (_) {
+                              if (_selectedTab != index) {
+                                setState(() {
+                                  _selectedTab = index;
+                                });
+                                _loadTasks();
+                              }
+                            },
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
-            ),
-              Expanded(
-                flex: 3,
-                child: _isLoading
+          ),
+
+          // Danh sách công việc
+          Expanded(
+            flex: 3,
+            child: _isLoading
                 ? const Center(
               child: CircularProgressIndicator(),
             )
@@ -1141,9 +1256,10 @@ class _TaskListScreenState extends State<TaskListScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
-                    ElevatedButton(
+                    ElevatedButton.icon(
                       onPressed: _loadTasks,
-                      child: const Text('Thử lại'),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Thử lại'),
                     ),
                   ],
                 ),
@@ -1186,29 +1302,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
                       ),
                       isThreeLine: task.startDate != null ||
                           task.dueDate != null,
-                      onTap: () async {
-                        final result = await Navigator.push<bool>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TaskDetailScreen(task: task),
-                          ),
-                        );
-
-                        if (!mounted) return;
-
-                        if (result == true) {
-                          await _loadTasks();
-
-                          if (!mounted) return;
-
-                          ScaffoldMessenger.of(this.context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Cập nhật công việc thành công!'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        }
-                      },
+                      onTap: () => _openTaskDetail(task),
                     ),
                   );
                 },
@@ -1218,9 +1312,20 @@ class _TaskListScreenState extends State<TaskListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showCreateTaskDialog,
-        icon: const Icon(Icons.add),
-        label: const Text('Thêm công việc'),
+        onPressed: _isCreatingTask ? null : _showCreateTaskDialog,
+        icon: _isCreatingTask
+            ? const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white,
+          ),
+        )
+            : const Icon(Icons.add),
+        label: Text(
+          _isCreatingTask ? 'Đang thêm...' : 'Thêm công việc',
+        ),
       ),
     );
   }

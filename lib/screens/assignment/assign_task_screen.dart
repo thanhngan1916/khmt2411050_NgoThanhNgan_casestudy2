@@ -356,54 +356,58 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                     ),
                   ),
 
-                  ..._selectedUsers.values.map((user) {
-                    final isPrimary = user.id == _primaryAssigneeId;
+                  RadioGroup<String>(
+                    groupValue: _primaryAssigneeId,
+                    onChanged: (value) {
+                      setState(() {
+                        _primaryAssigneeId = value;
+                      });
+                    },
+                    child: Column(
+                      children: _selectedUsers.values.map((user) {
+                        final isPrimary = user.id == _primaryAssigneeId;
 
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      child: RadioListTile<String>(
-                        value: user.id,
-                        groupValue: _primaryAssigneeId,
-                        activeColor: Colors.deepPurple,
-                        title: Text(
-                          user.fullName,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
                           ),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(user.email),
-                            if (isPrimary)
-                              const Padding(
-                                padding: EdgeInsets.only(top: 4),
-                                child: Text(
-                                  '★ NGƯỜI PHỤ TRÁCH CHÍNH',
-                                  style: TextStyle(
-                                    color: Colors.deepPurple,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                ),
+                          child: RadioListTile<String>(
+                            value: user.id,
+                            activeColor: Colors.deepPurple,
+                            title: Text(
+                              user.fullName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
                               ),
-                          ],
-                        ),
-                        secondary: Icon(
-                          Icons.star,
-                          color: isPrimary ? Colors.orange : Colors.grey,
-                        ),
-                        onChanged: (value) {
-                          setState(() {
-                            _primaryAssigneeId = value;
-                          });
-                        },
-                      ),
-                    );
-                  }),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(user.email),
+                                if (isPrimary)
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      '★ NGƯỜI PHỤ TRÁCH CHÍNH',
+                                      style: TextStyle(
+                                        color: Colors.deepPurple,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            secondary: Icon(
+                              Icons.star,
+                              color: isPrimary ? Colors.orange : Colors.grey,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
                 ],
               ],
             ),
