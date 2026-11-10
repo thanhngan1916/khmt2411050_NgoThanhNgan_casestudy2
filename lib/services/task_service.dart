@@ -90,6 +90,53 @@ class TaskService {
           : 'Không thể tải thống kê công việc được giao.',
     );
   }
+  // LẤY DANH SÁCH CÔNG VIỆC SẮP ĐẾN HẠN VÀ QUÁ HẠN
+  Future<Map<String, List<Task>>> getDeadlineTasks({
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/statistics/deadlines');
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    dynamic data;
+
+    try {
+      data = jsonDecode(response.body);
+    } catch (_) {
+      throw Exception('Backend trả về dữ liệu hạn công việc không hợp lệ.');
+    }
+
+    if (response.statusCode == 200) {
+      final upcomingData = data['upcoming']['tasks'] ?? [];
+      final overdueData = data['overdue']['tasks'] ?? [];
+
+      return {
+        'upcoming': (upcomingData as List)
+            .map((item) => Task.fromJson(
+          item as Map<String, dynamic>,
+        ))
+            .toList(),
+
+        'overdue': (overdueData as List)
+            .map((item) => Task.fromJson(
+          item as Map<String, dynamic>,
+        ))
+            .toList(),
+      };
+    }
+
+    throw Exception(
+      data is Map
+          ? data['message'] ?? 'Không thể tải công việc theo hạn hoàn thành.'
+          : 'Không thể tải công việc theo hạn hoàn thành.',
+    );
+  }
 
   Future<List<Task>> getTasks({
     required String token,

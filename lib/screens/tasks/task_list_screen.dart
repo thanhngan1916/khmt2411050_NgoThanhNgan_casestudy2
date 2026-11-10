@@ -39,6 +39,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
   String? _error;
   int _selectedTab = 0;
 
+// Danh sách công việc theo hạn hoàn thành
+  List<Task> _upcomingTasks = [];
+  List<Task> _overdueTasks = [];
+  bool _isDeadlineLoading = true;
+
   // Dữ liệu thống kê công việc từ Backend
   Map<String, int> _statistics = {
     'total': 0,
@@ -82,6 +87,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
     super.initState();
     _loadTasks();
     _loadUsers();
+    _loadDeadlineTasks();
   }
   Future<void> _showCreateTaskDialog() async {
     final pageContext = context;
@@ -430,6 +436,37 @@ class _TaskListScreenState extends State<TaskListScreen> {
       });
     }
   }
+  // Tải danh sách công việc sắp đến hạn và quá hạn
+  Future<void> _loadDeadlineTasks() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Bạn chưa đăng nhập.');
+      }
+
+      final result = await _taskService.getDeadlineTasks(
+        token: token,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _upcomingTasks = result['upcoming'] ?? [];
+        _overdueTasks = result['overdue'] ?? [];
+        _isDeadlineLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Lỗi tải công việc theo hạn: $e');
+
+      if (!mounted) return;
+
+      setState(() {
+        _isDeadlineLoading = false;
+      });
+    }
+  }
 
   Future<void> _loadUsers() async {
     try {
@@ -676,6 +713,142 @@ class _TaskListScreenState extends State<TaskListScreen> {
       ),
     );
   }
+  // Hiển thị danh sách công việc theo hạn hoàn thành
+  Widget _buildDeadlineOverview() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Card(
+        elevation: 2,
+        child: ExpansionTile(
+          initiallyExpanded: false,
+          leading: const Icon(
+            Icons.event_note,
+            color: Colors.deepPurple,
+          ),
+          title: const Text(
+            'Công việc theo hạn hoàn thành',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: Text(
+            _isDeadlineLoading
+                ? 'Đang tải dữ liệu...'
+                : 'Sắp đến hạn: ${_upcomingTasks.length} • Quá hạn: ${_overdueTasks.length}',
+            style: const TextStyle(fontSize: 12),
+          ),
+          children: [
+            if (_isDeadlineLoading)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: LinearProgressIndicator(),
+              )
+            else ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: _buildDeadlineSection(
+                  title: 'Sắp đến hạn',
+                  tasks: _upcomingTasks,
+                  color: Colors.orange,
+                  icon: Icons.schedule,
+                ),
+              ),
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: _buildDeadlineSection(
+                  title: 'Đã quá hạn',
+                  tasks: _overdueTasks,
+                  color: Colors.red,
+                  icon: Icons.warning_amber,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+// Hiển thị từng nhóm công việc
+  Widget _buildDeadlineSection({
+    required String title,
+    required List<Task> tasks,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ),
+            Text(
+              '${tasks.length} công việc',
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        if (tasks.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Không có công việc',
+              style: TextStyle(color: Colors.grey),
+            ),
+          )
+        else
+          ...tasks.map(
+                (task) => ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              leading: Icon(
+                Icons.assignment_outlined,
+                color: color,
+              ),
+              title: Text(
+                task.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                'Hạn: ${task.dueDate!.day}/${task.dueDate!.month}/${task.dueDate!.year}',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () async {
+                final result = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TaskDetailScreen(task: task),
+                  ),
+                );
+
+                if (!mounted) return;
+
+                if (result == true) {
+                  await _loadTasks();
+                  await _loadDeadlineTasks();
+                }
+              },
+            ),
+          ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -693,10 +866,14 @@ class _TaskListScreenState extends State<TaskListScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          const SizedBox(height: 12),
-
+        body: Column(
+            children: [
+            Expanded(
+            flex: 2,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
           // Tìm kiếm theo tên công việc
           Padding(
             padding: const EdgeInsets.all(16),
@@ -906,6 +1083,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
 // THỐNG KÊ CÔNG VIỆC ĐƯỢC GIAO VÀ ĐANG PHỤ TRÁCH
           _buildAssignmentOverview(),
 
+          const SizedBox(height: 8),
+
+// CÔNG VIỆC SẮP ĐẾN HẠN VÀ ĐÃ QUÁ HẠN
+          _buildDeadlineOverview(),
+
           const SizedBox(height: 12),
 
           // Giữ nguyên 4 tab phân loại công việc
@@ -931,8 +1113,13 @@ class _TaskListScreenState extends State<TaskListScreen> {
           ),
 
           const SizedBox(height: 8),
-          Expanded(
-            child: _isLoading
+                ],
+              ),
+            ),
+            ),
+              Expanded(
+                flex: 3,
+                child: _isLoading
                 ? const Center(
               child: CircularProgressIndicator(),
             )
